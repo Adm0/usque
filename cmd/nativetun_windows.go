@@ -10,18 +10,24 @@ import (
 	"github.com/Diniboy1123/usque/api"
 	"github.com/Diniboy1123/usque/config"
 	"github.com/Diniboy1123/usque/internal"
+	"golang.org/x/sys/windows"
 	"golang.zx2c4.com/wireguard/tun"
 )
 
 var longDescription = "Expose Warp as a native TUN device that accepts any IP traffic." +
 	" Requires wintun.dll and administrator rights."
 
+var (
+	// Random generated GUID: 52FF161B-974F-11F0-ABBE-5EAC1D44E78E
+	tunGUID = &windows.GUID{Data1: 0x52ff161b, Data2: 0x974f, Data3: 0x11f0, Data4: [8]byte{0xab, 0xbe, 0x5e, 0xac, 0x1d, 0x44, 0xe7, 0x8e}}
+)
+
 func (t *tunDevice) create() (api.TunnelDevice, error) {
 	if t.name == "" {
 		t.name = "usque"
 	}
 
-	dev, err := tun.CreateTUN(t.name, t.mtu)
+	dev, err := tun.CreateTUNWithRequestedGUID(t.name, tunGUID, t.mtu)
 	if err != nil {
 		return nil, err
 	}
