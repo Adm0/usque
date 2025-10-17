@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"sync"
 	"time"
 
@@ -64,6 +65,8 @@ type TunnelDevice interface {
 	ReadPacket(buf []byte) (int, error)
 	// WritePacket writes a packet to the device.
 	WritePacket(pkt []byte) error
+	// Correctly close device.
+	Close() error
 }
 
 // NetstackAdapter wraps a tun.Device (e.g. from netstack) to satisfy TunnelDevice.
@@ -98,6 +101,10 @@ func (n *NetstackAdapter) WritePacket(pkt []byte) error {
 	// Write expects a slice of packet buffers.
 	_, err := n.dev.Write([][]byte{pkt}, 0)
 	return err
+}
+
+func (n *NetstackAdapter) Close() error {
+	return n.dev.Close()
 }
 
 // NewNetstackAdapter creates a new NetstackAdapter.
@@ -136,6 +143,10 @@ func (w *WaterAdapter) ReadPacket(buf []byte) (int, error) {
 func (w *WaterAdapter) WritePacket(pkt []byte) error {
 	_, err := w.iface.Write(pkt)
 	return err
+}
+
+func (w *WaterAdapter) Close() error {
+	return w.iface.Close()
 }
 
 // NewWaterAdapter creates a new WaterAdapter.
@@ -195,7 +206,9 @@ func MaintainTunnel(ctx context.Context, tlsConfig *tls.Config, keepalivePeriod 
 				n, err := device.ReadPacket(buf)
 				if err != nil {
 					packetBufferPool.Put(buf)
-					errChan <- fmt.Errorf("failed to read from TUN device: %v", err)
+					if !errors.Is(err, os.ErrClosed) {
+						errChan <- fmt.Errorf("failed to read from TUN device: %v", err)
+					}
 					return
 				}
 				icmp, err := ipConn.WritePacket(buf[:n])
