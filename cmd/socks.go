@@ -129,14 +129,8 @@ var socksCmd = &cobra.Command{
 			localAddresses = append(localAddresses, v6)
 		}
 
-		dnsServers, err := cmd.Flags().GetStringArray("dns")
-		if err != nil {
-			cmd.Printf("Failed to get DNS servers: %v\n", err)
-			return
-		}
-
 		var dnsAddrs []netip.Addr
-		for _, dns := range dnsServers {
+		for _, dns := range config.AppConfig.Dns {
 			addr, err := netip.ParseAddr(dns)
 			if err != nil {
 				cmd.Printf("Failed to parse DNS server: %v\n", err)
@@ -249,7 +243,6 @@ func init() {
 	socksCmd.Flags().StringP("username", "u", "", "Username for proxy authentication (specify both username and password to enable)")
 	socksCmd.Flags().StringP("password", "w", "", "Password for proxy authentication (specify both username and password to enable)")
 	socksCmd.Flags().IntP("connect-port", "P", 443, "Used port for MASQUE connection")
-	socksCmd.Flags().StringArrayP("dns", "d", []string{"9.9.9.9", "149.112.112.112", "2620:fe::fe", "2620:fe::9"}, "DNS servers to use")
 	socksCmd.Flags().DurationP("dns-timeout", "t", 2*time.Second, "Timeout for DNS queries")
 	socksCmd.Flags().BoolP("ipv6", "6", false, "Use IPv6 for MASQUE connection")
 	socksCmd.Flags().BoolP("no-tunnel-ipv4", "F", false, "Disable IPv4 inside the MASQUE tunnel")

@@ -103,6 +103,7 @@ var registerCmd = &cobra.Command{
 			AccessToken:    accountData.Token,
 			IPv4:           updatedAccountData.Config.Interface.Addresses.V4,
 			IPv6:           updatedAccountData.Config.Interface.Addresses.V6,
+			Dns:            []string{"1.1.1.1", "1.0.0.1", "2606:4700:4700::1111", "2606:4700:4700::1001"},
 		}
 
 		config.AppConfig.SaveConfig(configPath)

@@ -12,15 +12,16 @@ import (
 
 // Config represents the application configuration structure, containing essential details such as keys, endpoints, and access tokens.
 type Config struct {
-	PrivateKey     string `json:"private_key"`      // Base64-encoded ECDSA private key
-	EndpointV4     string `json:"endpoint_v4"`      // IPv4 address of the endpoint
-	EndpointV6     string `json:"endpoint_v6"`      // IPv6 address of the endpoint
-	EndpointPubKey string `json:"endpoint_pub_key"` // PEM-encoded ECDSA public key of the endpoint to verify against
-	License        string `json:"license"`          // Application license key
-	ID             string `json:"id"`               // Device unique identifier
-	AccessToken    string `json:"access_token"`     // Authentication token for API access
-	IPv4           string `json:"ipv4"`             // Assigned IPv4 address
-	IPv6           string `json:"ipv6"`             // Assigned IPv6 address
+	PrivateKey     string   `json:"private_key"`      // Base64-encoded ECDSA private key
+	EndpointV4     string   `json:"endpoint_v4"`      // IPv4 address of the endpoint
+	EndpointV6     string   `json:"endpoint_v6"`      // IPv6 address of the endpoint
+	EndpointPubKey string   `json:"endpoint_pub_key"` // PEM-encoded ECDSA public key of the endpoint to verify against
+	License        string   `json:"license"`          // Application license key
+	ID             string   `json:"id"`               // Device unique identifier
+	AccessToken    string   `json:"access_token"`     // Authentication token for API access
+	IPv4           string   `json:"ipv4"`             // Assigned IPv4 address
+	IPv6           string   `json:"ipv6"`             // Assigned IPv6 address
+	Dns            []string `json:"dns"`              // DNS servers to use
 }
 
 // AppConfig holds the global application configuration.

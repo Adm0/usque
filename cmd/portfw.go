@@ -121,14 +121,8 @@ var portFwCmd = &cobra.Command{
 			localAddresses = append(localAddresses, v6)
 		}
 
-		dnsServers, err := cmd.Flags().GetStringArray("dns")
-		if err != nil {
-			cmd.Printf("Failed to get DNS servers: %v\n", err)
-			return
-		}
-
 		var dnsAddrs []netip.Addr
-		for _, dns := range dnsServers {
+		for _, dns := range config.AppConfig.Dns {
 			addr, err := netip.ParseAddr(dns)
 			if err != nil {
 				cmd.Printf("Failed to parse DNS server: %v\n", err)
@@ -342,7 +336,6 @@ func init() {
 	portFwCmd.Flags().StringArrayP("local-ports", "L", []string{}, "List of port mappings to forward (SSH like e.g. localhost:8080:100.96.0.2:8080)")
 	portFwCmd.Flags().StringArrayP("remote-ports", "R", []string{}, "List of port mappings to forward (SSH like e.g. 100.96.0.3:8080:localhost:8080)")
 	portFwCmd.Flags().IntP("connect-port", "P", 443, "Used port for MASQUE connection")
-	portFwCmd.Flags().StringArrayP("dns", "d", []string{"9.9.9.9", "149.112.112.112", "2620:fe::fe", "2620:fe::9"}, "DNS servers to use inside the MASQUE tunnel")
 	portFwCmd.Flags().BoolP("ipv6", "6", false, "Use IPv6 for MASQUE connection")
 	portFwCmd.Flags().BoolP("no-tunnel-ipv4", "F", false, "Disable IPv4 inside the MASQUE tunnel")
 	portFwCmd.Flags().BoolP("no-tunnel-ipv6", "S", false, "Disable IPv6 inside the MASQUE tunnel")
