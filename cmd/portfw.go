@@ -136,7 +136,13 @@ var portFwCmd = &cobra.Command{
 			cmd.Printf("Failed to get MTU: %v\n", err)
 			return
 		}
-		if mtu != 1280 {
+		if mtu < 1280 && tunnelIPv6 {
+			cmd.Println("IPV6 MTU cannot be less than 1280")
+			return
+		} else if mtu < 576 && tunnelIPv4 {
+			cmd.Println("IPV4 MTU cannot be less than 576")
+			return
+		} else if mtu != 1280 {
 			log.Println("Warning: MTU is not the default 1280. This is not supported. Packet loss and other issues may occur.")
 		}
 
