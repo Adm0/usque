@@ -4,6 +4,7 @@ package cmd
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"syscall"
 
@@ -48,11 +49,13 @@ func (t *tunDevice) create() (api.TunnelDevice, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to set IPv4 address: %v", err)
 		}
+		log.Println("IPv4 address set successfully:", config.AppConfig.IPv4)
 
 		err = internal.SetMTU(luid, syscall.AF_INET, t.mtu)
 		if err != nil {
 			return nil, fmt.Errorf("failed to set IPv4 MTU: %v", err)
 		}
+		log.Println("IPv4 MTU set successfully:", t.mtu)
 	}
 
 	if t.ipv6 {
@@ -64,11 +67,13 @@ func (t *tunDevice) create() (api.TunnelDevice, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to set IPv6 address: %v", err)
 		}
+		log.Println("IPv6 address set successfully:", config.AppConfig.IPv4)
 
 		err = internal.SetMTU(luid, syscall.AF_INET6, t.mtu)
 		if err != nil {
 			return nil, fmt.Errorf("failed to set IPv6 MTU: %v", err)
 		}
+		log.Println("IPv6 MTU set successfully:", t.mtu)
 	}
 
 	return api.NewNetstackAdapter(dev), nil
