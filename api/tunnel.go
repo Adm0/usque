@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	connectip "github.com/Diniboy1123/connect-ip-go"
 	"github.com/Diniboy1123/usque/internal"
 	"github.com/songgao/water"
 	"golang.zx2c4.com/wireguard/tun"
@@ -214,7 +213,7 @@ func MaintainTunnel(ctx context.Context, tlsConfig *tls.Config, keepalivePeriod 
 				icmp, err := ipConn.WritePacket(buf[:n])
 				if err != nil {
 					packetBufferPool.Put(buf)
-					if errors.As(err, new(*connectip.CloseError)) {
+					if errors.Is(err, net.ErrClosed) {
 						errChan <- fmt.Errorf("connection closed while writing to IP connection: %v", err)
 						return
 					}
@@ -225,7 +224,7 @@ func MaintainTunnel(ctx context.Context, tlsConfig *tls.Config, keepalivePeriod 
 
 				if len(icmp) > 0 {
 					if err := device.WritePacket(icmp); err != nil {
-						if errors.As(err, new(*connectip.CloseError)) {
+						if errors.Is(err, net.ErrClosed) {
 							errChan <- fmt.Errorf("connection closed while writing ICMP to TUN device: %v", err)
 							return
 						}
@@ -241,7 +240,7 @@ func MaintainTunnel(ctx context.Context, tlsConfig *tls.Config, keepalivePeriod 
 			for {
 				n, err := ipConn.ReadPacket(buf, true)
 				if err != nil {
-					if errors.As(err, new(*connectip.CloseError)) {
+					if errors.Is(err, net.ErrClosed) {
 						errChan <- fmt.Errorf("connection closed while reading from IP connection: %v", err)
 						return
 					}
