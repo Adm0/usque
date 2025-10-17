@@ -4,6 +4,8 @@ package cmd
 
 import (
 	"fmt"
+	"net"
+	"syscall"
 
 	"github.com/Diniboy1123/usque/api"
 	"github.com/Diniboy1123/usque/config"
@@ -29,25 +31,35 @@ func (t *tunDevice) create() (api.TunnelDevice, error) {
 		return nil, err
 	}
 
+	luid := internal.AliasToLuid(t.name)
+
 	if t.ipv4 {
-		err = internal.SetIPv4Address(t.name, config.AppConfig.IPv4, "255.255.255.255")
+		err = internal.AddIpAddress(
+			luid,
+			net.ParseIP(config.AppConfig.IPv4),
+			net.CIDRMask(32, 32),
+		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to set IPv4 address: %v", err)
 		}
 
-		err = internal.SetIPv4MTU(t.name, t.mtu)
+		err = internal.SetMTU(luid, syscall.AF_INET, t.mtu)
 		if err != nil {
 			return nil, fmt.Errorf("failed to set IPv4 MTU: %v", err)
 		}
 	}
 
 	if t.ipv6 {
-		err = internal.SetIPv6Address(t.name, config.AppConfig.IPv6, "128")
+		err = internal.AddIpAddress(
+			luid,
+			net.ParseIP(config.AppConfig.IPv6),
+			net.CIDRMask(128, 128),
+		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to set IPv6 address: %v", err)
 		}
 
-		err = internal.SetIPv6MTU(t.name, t.mtu)
+		err = internal.SetMTU(luid, syscall.AF_INET6, t.mtu)
 		if err != nil {
 			return nil, fmt.Errorf("failed to set IPv6 MTU: %v", err)
 		}
