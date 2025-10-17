@@ -6,6 +6,8 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/Diniboy1123/usque/api"
@@ -223,11 +225,21 @@ var socksCmd = &cobra.Command{
 			)
 		}
 
-		log.Printf("SOCKS proxy listening on %s:%s", bindAddress, port)
-		if err := server.ListenAndServe("tcp", net.JoinHostPort(bindAddress, port)); err != nil {
-			cmd.Printf("Failed to start SOCKS proxy: %v\n", err)
-			return
-		}
+		go func() {
+			log.Printf("SOCKS proxy listening on %s:%s", bindAddress, port)
+			if err := server.ListenAndServe("tcp", net.JoinHostPort(bindAddress, port)); err != nil {
+				cmd.Printf("Failed to start SOCKS proxy: %v\n", err)
+				return
+			}
+		}()
+
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+		<-sigChan
+		signal.Stop(sigChan)
+		close(sigChan)
+		log.Println("Close connection")
 	},
 }
 

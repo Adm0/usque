@@ -4,6 +4,9 @@ import (
 	"context"
 	"log"
 	"net"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/Diniboy1123/usque/api"
@@ -156,7 +159,13 @@ var nativeTunCmd = &cobra.Command{
 
 		log.Println("Tunnel established, you may now set up routing and DNS")
 
-		select {}
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+		<-sigChan
+		signal.Stop(sigChan)
+		close(sigChan)
+		log.Println("Close connection")
 	},
 }
 
