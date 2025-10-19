@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"sync"
 	"time"
 
-	connectip "github.com/Diniboy1123/connect-ip-go"
 	"github.com/Diniboy1123/usque/internal"
 	"github.com/songgao/water"
 	"golang.zx2c4.com/wireguard/tun"
@@ -205,13 +205,16 @@ func MaintainTunnel(ctx context.Context, tlsConfig *tls.Config, keepalivePeriod 
 				n, err := device.ReadPacket(buf)
 				if err != nil {
 					packetBufferPool.Put(buf)
+					if errors.Is(err, os.ErrClosed) {
+						return
+					}
 					errChan <- fmt.Errorf("failed to read from TUN device: %v", err)
 					return
 				}
 				icmp, err := ipConn.WritePacket(buf[:n])
 				if err != nil {
 					packetBufferPool.Put(buf)
-					if errors.As(err, new(*connectip.CloseError)) {
+					if errors.Is(err, net.ErrClosed) {
 						errChan <- fmt.Errorf("connection closed while writing to IP connection: %v", err)
 						return
 					}
@@ -222,8 +225,7 @@ func MaintainTunnel(ctx context.Context, tlsConfig *tls.Config, keepalivePeriod 
 
 				if len(icmp) > 0 {
 					if err := device.WritePacket(icmp); err != nil {
-						if errors.As(err, new(*connectip.CloseError)) {
-							errChan <- fmt.Errorf("connection closed while writing ICMP to TUN device: %v", err)
+						if errors.Is(err, os.ErrClosed) {
 							return
 						}
 						log.Printf("Error writing ICMP to TUN device: %v, continuing...", err)
@@ -238,7 +240,7 @@ func MaintainTunnel(ctx context.Context, tlsConfig *tls.Config, keepalivePeriod 
 			for {
 				n, err := ipConn.ReadPacket(buf, true)
 				if err != nil {
-					if errors.As(err, new(*connectip.CloseError)) {
+					if errors.Is(err, net.ErrClosed) {
 						errChan <- fmt.Errorf("connection closed while reading from IP connection: %v", err)
 						return
 					}
@@ -246,6 +248,9 @@ func MaintainTunnel(ctx context.Context, tlsConfig *tls.Config, keepalivePeriod 
 					continue
 				}
 				if err := device.WritePacket(buf[:n]); err != nil {
+					if errors.Is(err, os.ErrClosed) {
+						return
+					}
 					errChan <- fmt.Errorf("failed to write to TUN device: %v", err)
 					return
 				}
