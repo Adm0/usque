@@ -35,7 +35,7 @@ func (t *tunDevice) create() (api.TunnelDevice, error) {
 	}
 
 	if t.ipv4 {
-		err = internal.SetIPv4Address(t.name, config.AppConfig.IPv4, "255.255.255.255")
+		err = internal.SetIPv4Address(t.name, config.AppConfig.IPv4, "32")
 		if err != nil {
 			return nil, fmt.Errorf("failed to set IPv4 address: %v", err)
 		}

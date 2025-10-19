@@ -11,7 +11,7 @@ import (
 func SetIPv4Address(ifaceName, ipAddr, mask string) error {
 	cmd := exec.Command("netsh", "interface", "ipv4", "set", "address",
 		fmt.Sprintf("name=\"%s\"", ifaceName),
-		"static", ipAddr, mask)
+		"static", ipAddr+"/"+mask)
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
