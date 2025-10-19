@@ -60,10 +60,12 @@ func NewNetBuffer(capacity int) *NetBuffer {
 // TunnelDevice abstracts a TUN device so that we can use the same tunnel-maintenance code
 // regardless of the underlying implementation.
 type TunnelDevice interface {
-	// ReadPacket reads a packet from the device (using the given mtu) and returns its contents.
+	// Reads a packet from the device (using the given mtu) and returns its contents.
 	ReadPacket(buf []byte) (int, error)
-	// WritePacket writes a packet to the device.
+	// Writes a packet to the device.
 	WritePacket(pkt []byte) error
+	// Сloses the tunnel device.
+	Close() error
 }
 
 // NetstackAdapter wraps a tun.Device (e.g. from netstack) to satisfy TunnelDevice.
@@ -98,6 +100,10 @@ func (n *NetstackAdapter) WritePacket(pkt []byte) error {
 	// Write expects a slice of packet buffers.
 	_, err := n.dev.Write([][]byte{pkt}, 0)
 	return err
+}
+
+func (n *NetstackAdapter) Close() error {
+	return n.dev.Close()
 }
 
 // NewNetstackAdapter creates a new NetstackAdapter.
@@ -136,6 +142,10 @@ func (w *WaterAdapter) ReadPacket(buf []byte) (int, error) {
 func (w *WaterAdapter) WritePacket(pkt []byte) error {
 	_, err := w.iface.Write(pkt)
 	return err
+}
+
+func (w *WaterAdapter) Close() error {
+	return w.iface.Close()
 }
 
 // NewWaterAdapter creates a new WaterAdapter.

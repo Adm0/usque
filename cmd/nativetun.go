@@ -149,6 +149,7 @@ var nativeTunCmd = &cobra.Command{
 			log.Println("Are you root/administrator? TUN device creation usually requires elevated privileges.")
 			log.Fatalf("Failed to create TUN device: %v", err)
 		}
+		defer dev.Close()
 
 		log.Printf("Created TUN device: %s", t.name)
 
