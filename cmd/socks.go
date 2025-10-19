@@ -223,11 +223,15 @@ var socksCmd = &cobra.Command{
 			)
 		}
 
-		log.Printf("SOCKS proxy listening on %s:%s", bindAddress, port)
-		if err := server.ListenAndServe("tcp", net.JoinHostPort(bindAddress, port)); err != nil {
-			cmd.Printf("Failed to start SOCKS proxy: %v\n", err)
-			return
-		}
+		go func() {
+			log.Printf("SOCKS proxy listening on %s:%s", bindAddress, port)
+			if err := server.ListenAndServe("tcp", net.JoinHostPort(bindAddress, port)); err != nil {
+				cmd.Printf("Failed to start SOCKS proxy: %v\n", err)
+				return
+			}
+		}()
+
+		internal.WaitTerminateSignal()
 	},
 }
 

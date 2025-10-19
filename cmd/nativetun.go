@@ -157,7 +157,7 @@ var nativeTunCmd = &cobra.Command{
 
 		log.Println("Tunnel established, you may now set up routing and DNS")
 
-		select {}
+		internal.WaitTerminateSignal()
 	},
 }
 

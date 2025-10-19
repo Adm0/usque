@@ -213,10 +213,14 @@ var httpProxyCmd = &cobra.Command{
 			}),
 		}
 
-		log.Printf("HTTP proxy listening on %s:%s\n", bindAddress, port)
-		if err := server.ListenAndServe(); err != nil {
-			cmd.Printf("Failed to start HTTP proxy: %v\n", err)
-		}
+		go func() {
+			log.Printf("HTTP proxy listening on %s:%s\n", bindAddress, port)
+			if err := server.ListenAndServe(); err != nil {
+				cmd.Printf("Failed to start HTTP proxy: %v\n", err)
+			}
+		}()
+
+		internal.WaitTerminateSignal()
 	},
 }
 
