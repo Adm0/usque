@@ -4,6 +4,8 @@ package cmd
 
 import (
 	"fmt"
+	"log"
+	"net"
 
 	"github.com/Diniboy1123/usque/api"
 	"github.com/Diniboy1123/usque/config"
@@ -34,28 +36,37 @@ func (t *tunDevice) create() (api.TunnelDevice, error) {
 		return nil, err
 	}
 
+	luid, err := internal.AliasToLuid(t.name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get LUID: %v", err)
+	}
+
 	if t.ipv4 {
-		err = internal.SetIPv4Address(t.name, config.AppConfig.IPv4, "32")
+		err = internal.AddIpAddress(luid, net.ParseIP(config.AppConfig.IPv4))
 		if err != nil {
 			return nil, fmt.Errorf("failed to set IPv4 address: %v", err)
 		}
+		log.Println("IPv4 address set successfully:", config.AppConfig.IPv4)
 
-		err = internal.SetIPv4MTU(t.name, t.mtu)
+		err = internal.SetMTU(luid, windows.AF_INET, t.mtu)
 		if err != nil {
 			return nil, fmt.Errorf("failed to set IPv4 MTU: %v", err)
 		}
+		log.Println("IPv4 MTU set successfully:", t.mtu)
 	}
 
 	if t.ipv6 {
-		err = internal.SetIPv6Address(t.name, config.AppConfig.IPv6, "128")
+		err = internal.AddIpAddress(luid, net.ParseIP(config.AppConfig.IPv6))
 		if err != nil {
 			return nil, fmt.Errorf("failed to set IPv6 address: %v", err)
 		}
+		log.Println("IPv6 address set successfully:", config.AppConfig.IPv6)
 
-		err = internal.SetIPv6MTU(t.name, t.mtu)
+		err = internal.SetMTU(luid, windows.AF_INET6, t.mtu)
 		if err != nil {
 			return nil, fmt.Errorf("failed to set IPv6 MTU: %v", err)
 		}
+		log.Println("IPv6 MTU set successfully:", t.mtu)
 	}
 
 	return api.NewNetstackAdapter(dev), nil
