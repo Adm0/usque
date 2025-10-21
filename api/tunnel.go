@@ -198,6 +198,7 @@ func MaintainTunnel(ctx context.Context, tlsConfig *tls.Config, keepalivePeriod 
 
 		log.Println("Connected to MASQUE server")
 		errChan := make(chan error, 2)
+		closeChan := make(chan error, 2)
 
 		go func() {
 			for {
@@ -206,6 +207,7 @@ func MaintainTunnel(ctx context.Context, tlsConfig *tls.Config, keepalivePeriod 
 				if err != nil {
 					packetBufferPool.Put(buf)
 					if errors.Is(err, os.ErrClosed) {
+						closeChan <- fmt.Errorf("connection closed while reading from TUN device: %v", err)
 						return
 					}
 					errChan <- fmt.Errorf("failed to read from TUN device: %v", err)
@@ -226,6 +228,7 @@ func MaintainTunnel(ctx context.Context, tlsConfig *tls.Config, keepalivePeriod 
 				if len(icmp) > 0 {
 					if err := device.WritePacket(icmp); err != nil {
 						if errors.Is(err, os.ErrClosed) {
+							closeChan <- fmt.Errorf("connection closed while writing ICMP to TUN device: %v", err)
 							return
 						}
 						log.Printf("Error writing ICMP to TUN device: %v, continuing...", err)
@@ -249,6 +252,7 @@ func MaintainTunnel(ctx context.Context, tlsConfig *tls.Config, keepalivePeriod 
 				}
 				if err := device.WritePacket(buf[:n]); err != nil {
 					if errors.Is(err, os.ErrClosed) {
+						closeChan <- fmt.Errorf("connection closed while writing to TUN device: %v", err)
 						return
 					}
 					errChan <- fmt.Errorf("failed to write to TUN device: %v", err)
@@ -257,15 +261,27 @@ func MaintainTunnel(ctx context.Context, tlsConfig *tls.Config, keepalivePeriod 
 			}
 		}()
 
-		err = <-errChan
-		log.Printf("Tunnel connection lost: %v. Reconnecting...", err)
-		ipConn.Close()
-		if udpConn != nil {
-			udpConn.Close()
+		select {
+		case err = <-errChan:
+			log.Printf("Tunnel connection lost: %v. Reconnecting...", err)
+			ipConn.Close()
+			if udpConn != nil {
+				udpConn.Close()
+			}
+			if tr != nil {
+				tr.Close()
+			}
+			time.Sleep(reconnectDelay)
+		case err = <-closeChan:
+			log.Printf("Tunnel device closed: %v. Aborting...", err)
+			ipConn.Close()
+			if udpConn != nil {
+				udpConn.Close()
+			}
+			if tr != nil {
+				tr.Close()
+			}
+			os.Exit(0)
 		}
-		if tr != nil {
-			tr.Close()
-		}
-		time.Sleep(reconnectDelay)
 	}
 }
