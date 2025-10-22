@@ -53,7 +53,7 @@ var nativeTunCmd = &cobra.Command{
 			return
 		}
 
-		tlsConfig, err := api.PrepareTlsConfig(privKey, peerPubKey, cert, sni)
+		tlsConfig, err := internal.PrepareTlsConfig(privKey, peerPubKey, cert, sni)
 		if err != nil {
 			cmd.Printf("Failed to prepare TLS config: %v\n", err)
 			return

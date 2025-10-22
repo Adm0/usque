@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
@@ -19,6 +20,7 @@ import (
 	"time"
 
 	"github.com/quic-go/quic-go"
+	"github.com/quic-go/quic-go/http3"
 )
 
 // PortMapping represents a network port forwarding rule.
@@ -117,6 +119,63 @@ func GenerateCert(privKey *ecdsa.PrivateKey, pubKey *ecdsa.PublicKey) ([][]byte,
 	}
 
 	return [][]byte{cert}, nil
+}
+
+// PrepareTlsConfig creates a TLS configuration using the provided certificate and SNI (Server Name Indication).
+// It also verifies the peer's public key against the provided public key.
+//
+// Parameters:
+//   - privKey: *ecdsa.PrivateKey - The private key to use for TLS authentication.
+//   - peerPubKey: *ecdsa.PublicKey - The endpoint's public key to pin to.
+//   - cert: [][]byte - The certificate chain to use for TLS authentication.
+//   - sni: string - The Server Name Indication (SNI) to use.
+//
+// Returns:
+//   - *tls.Config: A TLS configuration for secure communication.
+//   - error: An error if TLS setup fails.
+func PrepareTlsConfig(privKey *ecdsa.PrivateKey, peerPubKey *ecdsa.PublicKey, cert [][]byte, sni string) (*tls.Config, error) {
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{
+			{
+				Certificate: cert,
+				PrivateKey:  privKey,
+			},
+		},
+		ServerName: sni,
+		NextProtos: []string{http3.NextProtoH3},
+		// WARN: SNI is usually not for the endpoint, so we must skip verification
+		InsecureSkipVerify: true,
+		// we pin to the endpoint public key
+		VerifyPeerCertificate: func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+			if len(rawCerts) == 0 {
+				return nil
+			}
+
+			cert, err := x509.ParseCertificate(rawCerts[0])
+			if err != nil {
+				return err
+			}
+
+			if _, ok := cert.PublicKey.(*ecdsa.PublicKey); !ok {
+				// we only support ECDSA
+				// TODO: don't hardcode cert type in the future
+				// as backend can start using different cert types
+				return x509.ErrUnsupportedAlgorithm
+			}
+
+			if !cert.PublicKey.(*ecdsa.PublicKey).Equal(peerPubKey) {
+				// reason is incorrect, but the best I could figure
+				// detail explains the actual reason
+
+				//10 is NoValidChains, but we support go1.22 where it's not defined
+				return x509.CertificateInvalidError{Cert: cert, Reason: 10, Detail: "remote endpoint has a different public key than what we trust in config.json"}
+			}
+
+			return nil
+		},
+	}
+
+	return tlsConfig, nil
 }
 
 // DefaultQuicConfig returns a MASQUE compatible default QUIC configuration with specified keep-alive period and initial packet size.
