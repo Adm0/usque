@@ -1,5 +1,7 @@
 package connect
 
+import "errors"
+
 type HTTPConnection interface {
 	// Reads a packet from the IP Connection and returns its contents.
 	ReadPacket(buf []byte) (int, error)
@@ -10,3 +12,7 @@ type HTTPConnection interface {
 }
 
 const HTTPDatagramContextID = 0
+
+var (
+	ErrLogin = errors.New("login failed! Please double-check if your tls key and cert is enrolled in the Cloudflare Access service")
+)

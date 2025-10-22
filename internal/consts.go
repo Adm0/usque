@@ -14,6 +14,7 @@ const (
 	TunTypeMasque = "masque"
 	DefaultLocale = "en_US"
 	//
+	ProtocolHeader  = "cf-connect-proto"
 	VersionHeader   = "cf-client-version"
 	ConnectProtocol = "cf-connect-ip"
 	ConnectVersion  = "a-6.35-4471"

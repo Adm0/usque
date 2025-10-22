@@ -181,14 +181,17 @@ func MaintainTunnel(ctx context.Context, tlsConfig *tls.Config, quicConfig *quic
 
 	for {
 		log.Printf("Establishing MASQUE connection to %s", endpoint.String())
-		ipConn, err := connect.ConnectHTTP3(
+		ipConn, err := connect.ConnectHTTP2(
 			ctx,
 			tlsConfig,
-			quicConfig,
+			quicConfig.KeepAlivePeriod,
 			url,
 			endpoint,
 		)
 		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				return
+			}
 			log.Printf("Failed to connect tunnel: %v", err)
 			ipConn.Close()
 			time.Sleep(reconnectDelay)

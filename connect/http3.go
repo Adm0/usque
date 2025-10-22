@@ -150,7 +150,11 @@ func ConnectHTTP3(
 	case <-ctx.Done():
 		return c, context.Cause(ctx)
 	case <-conn.Context().Done():
-		return c, context.Cause(conn.Context())
+		err := context.Cause(conn.Context())
+		if err, ok := err.(*quic.TransportError); ok && err.Remote && err.ErrorCode == 0x131 {
+			return c, ErrLogin
+		}
+		return c, err
 	case <-conn.ReceivedSettings():
 	}
 
@@ -182,9 +186,6 @@ func ConnectHTTP3(
 
 	rsp, err := c.conn.ReadResponse()
 	if err != nil {
-		if err, ok := err.(*quic.TransportError); ok && err.ErrorCode == 0x131 {
-			return c, errors.New("login failed! Please double-check if your tls key and cert is enrolled in the Cloudflare Access service")
-		}
 		return c, fmt.Errorf("failed to read response: %w", err)
 	}
 	if rsp.StatusCode != http.StatusOK {

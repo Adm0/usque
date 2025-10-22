@@ -21,6 +21,7 @@ import (
 
 	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/http3"
+	"golang.org/x/net/http2"
 )
 
 // PortMapping represents a network port forwarding rule.
@@ -142,7 +143,7 @@ func PrepareTlsConfig(privKey *ecdsa.PrivateKey, peerPubKey *ecdsa.PublicKey, ce
 			},
 		},
 		ServerName: sni,
-		NextProtos: []string{http3.NextProtoH3},
+		NextProtos: []string{http3.NextProtoH3, http2.NextProtoTLS},
 		// WARN: SNI is usually not for the endpoint, so we must skip verification
 		InsecureSkipVerify: true,
 		// we pin to the endpoint public key
