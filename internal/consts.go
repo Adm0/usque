@@ -17,11 +17,11 @@ const (
 	ProtocolHeader  = "cf-connect-proto"
 	VersionHeader   = "cf-client-version"
 	ConnectProtocol = "cf-connect-ip"
-	ConnectVersion  = "a-6.35-4471"
+	ConnectVersion  = "l-2025.8.779.0"
 )
 
 var Headers = map[string]string{
-	"User-Agent":   "WARP for Android",
+	"User-Agent":   "WARP for Linux",
 	VersionHeader:  ConnectVersion,
 	"Content-Type": "application/json; charset=UTF-8",
 	"Connection":   "Keep-Alive",
