@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/netip"
 	"os"
 	"sync"
 	"time"
@@ -163,20 +164,20 @@ func NewWaterAdapter(iface *water.Interface) TunnelDevice {
 //   - tlsConfig: *tls.Config - The TLS configuration for secure communication.
 //   - keepalivePeriod: time.Duration - The keepalive period for the QUIC connection.
 //   - initialPacketSize: uint16 - The initial packet size for the QUIC connection.
-//   - endpoint: *net.UDPAddr - The UDP address of the MASQUE server.
+//   - endpoint: netip.AddrPort - The address of the MASQUE server.
 //   - device: TunnelDevice - The TUN device to forward packets to and from.
 //   - mtu: int - The MTU of the TUN device.
 //   - reconnectDelay: time.Duration - The delay between reconnect attempts.
-func MaintainTunnel(ctx context.Context, tlsConfig *tls.Config, keepalivePeriod time.Duration, initialPacketSize uint16, endpoint *net.UDPAddr, device TunnelDevice, mtu int, reconnectDelay time.Duration) {
+func MaintainTunnel(ctx context.Context, tlsConfig *tls.Config, keepalivePeriod time.Duration, initialPacketSize uint16, endpoint netip.AddrPort, device TunnelDevice, mtu int, reconnectDelay time.Duration) {
 	packetBufferPool := NewNetBuffer(mtu)
 	for {
-		log.Printf("Establishing MASQUE connection to %s:%d", endpoint.IP, endpoint.Port)
+		log.Printf("Establishing MASQUE connection to %s", endpoint.String())
 		udpConn, tr, ipConn, rsp, err := ConnectTunnel(
 			ctx,
 			tlsConfig,
 			internal.DefaultQuicConfig(keepalivePeriod, initialPacketSize),
 			internal.ConnectURI,
-			endpoint,
+			net.UDPAddrFromAddrPort(endpoint),
 		)
 		if err != nil {
 			log.Printf("Failed to connect tunnel: %v", err)

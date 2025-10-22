@@ -84,18 +84,21 @@ var socksCmd = &cobra.Command{
 			return
 		}
 
-		var endpoint *net.UDPAddr
+		var addr netip.Addr
 		if ipv6, err := cmd.Flags().GetBool("ipv6"); err == nil && !ipv6 {
-			endpoint = &net.UDPAddr{
-				IP:   net.ParseIP(config.AppConfig.EndpointV4),
-				Port: connectPort,
+			addr, err = netip.ParseAddr(config.AppConfig.EndpointV4)
+			if err != nil {
+				cmd.Printf("Failed to parse IPv4 endpoint")
+				return
 			}
 		} else {
-			endpoint = &net.UDPAddr{
-				IP:   net.ParseIP(config.AppConfig.EndpointV6),
-				Port: connectPort,
+			addr, err = netip.ParseAddr(config.AppConfig.EndpointV6)
+			if err != nil {
+				cmd.Printf("Failed to parse IPv6 endpoint")
+				return
 			}
 		}
+		endpoint := netip.AddrPortFrom(addr, uint16(connectPort))
 
 		tunnelIPv4, err := cmd.Flags().GetBool("no-tunnel-ipv4")
 		if err != nil {
