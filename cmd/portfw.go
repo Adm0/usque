@@ -68,6 +68,7 @@ var portFwCmd = &cobra.Command{
 			cmd.Printf("Failed to get initial packet size: %v\n", err)
 			return
 		}
+		quicConfig := internal.DefaultQuicConfig(keepalivePeriod, initialPacketSize)
 
 		connectPort, err := cmd.Flags().GetInt("connect-port")
 		if err != nil {
@@ -195,7 +196,7 @@ var portFwCmd = &cobra.Command{
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		go api.MaintainTunnel(ctx, tlsConfig, keepalivePeriod, initialPacketSize, endpoint, api.NewNetstackAdapter(tunDev), mtu, reconnectDelay)
+		go api.MaintainTunnel(ctx, tlsConfig, quicConfig, endpoint, api.NewNetstackAdapter(tunDev), mtu, reconnectDelay)
 
 		log.Printf("Virtual tunnel created, forwarding ports")
 

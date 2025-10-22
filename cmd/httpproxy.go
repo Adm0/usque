@@ -66,6 +66,7 @@ var httpProxyCmd = &cobra.Command{
 			cmd.Printf("Failed to get initial packet size: %v\n", err)
 			return
 		}
+		quicConfig := internal.DefaultQuicConfig(keepalivePeriod, initialPacketSize)
 
 		bindAddress, err := cmd.Flags().GetString("bind")
 		if err != nil {
@@ -200,7 +201,7 @@ var httpProxyCmd = &cobra.Command{
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		go api.MaintainTunnel(ctx, tlsConfig, keepalivePeriod, initialPacketSize, endpoint, api.NewNetstackAdapter(tunDev), mtu, reconnectDelay)
+		go api.MaintainTunnel(ctx, tlsConfig, quicConfig, endpoint, api.NewNetstackAdapter(tunDev), mtu, reconnectDelay)
 
 		server := &http.Server{
 			Addr: net.JoinHostPort(bindAddress, port),

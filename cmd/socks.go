@@ -65,6 +65,7 @@ var socksCmd = &cobra.Command{
 			cmd.Printf("Failed to get initial packet size: %v\n", err)
 			return
 		}
+		quicConfig := internal.DefaultQuicConfig(keepalivePeriod, initialPacketSize)
 
 		bindAddress, err := cmd.Flags().GetString("bind")
 		if err != nil {
@@ -192,7 +193,7 @@ var socksCmd = &cobra.Command{
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		go api.MaintainTunnel(ctx, tlsConfig, keepalivePeriod, initialPacketSize, endpoint, api.NewNetstackAdapter(tunDev), mtu, reconnectDelay)
+		go api.MaintainTunnel(ctx, tlsConfig, quicConfig, endpoint, api.NewNetstackAdapter(tunDev), mtu, reconnectDelay)
 
 		var resolver socks5.NameResolver
 		if localDNS {

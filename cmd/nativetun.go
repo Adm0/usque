@@ -69,6 +69,7 @@ var nativeTunCmd = &cobra.Command{
 			cmd.Printf("Failed to get initial packet size: %v\n", err)
 			return
 		}
+		quicConfig := internal.DefaultQuicConfig(keepalivePeriod, initialPacketSize)
 
 		connectPort, err := cmd.Flags().GetInt("connect-port")
 		if err != nil {
@@ -159,7 +160,7 @@ var nativeTunCmd = &cobra.Command{
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		go api.MaintainTunnel(ctx, tlsConfig, keepalivePeriod, initialPacketSize, endpoint, dev, mtu, reconnectDelay)
+		go api.MaintainTunnel(ctx, tlsConfig, quicConfig, endpoint, dev, mtu, reconnectDelay)
 
 		log.Println("Tunnel established, you may now set up routing and DNS")
 
