@@ -147,6 +147,21 @@ var portFwCmd = &cobra.Command{
 			log.Println("Warning: MTU is not the default 1280. This is not supported. Packet loss and other issues may occur.")
 		}
 
+		http3, err := cmd.Flags().GetBool("http3")
+		if err != nil {
+			cmd.Printf("Failed to get http3 flag: %v\n", err)
+			return
+		}
+		http2, err := cmd.Flags().GetBool("http2")
+		if err != nil {
+			cmd.Printf("Failed to get http2 flag: %v\n", err)
+			return
+		}
+		if !http2 && !http3 {
+			http2 = true
+			http3 = true
+		}
+
 		localPorts, err := cmd.Flags().GetStringArray("local-ports")
 		if err != nil {
 			cmd.Printf("Failed to get local ports: %v\n", err)
@@ -196,7 +211,7 @@ var portFwCmd = &cobra.Command{
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		go api.MaintainTunnel(ctx, tlsConfig, quicConfig, endpoint, api.NewNetstackAdapter(tunDev), mtu, reconnectDelay)
+		go api.MaintainTunnel(ctx, tlsConfig, quicConfig, endpoint, api.NewNetstackAdapter(tunDev), mtu, reconnectDelay, http3, http2)
 
 		log.Printf("Virtual tunnel created, forwarding ports")
 
@@ -349,5 +364,7 @@ func init() {
 	portFwCmd.Flags().IntP("mtu", "m", 1280, "MTU for MASQUE connection")
 	portFwCmd.Flags().Uint16P("initial-packet-size", "i", 1242, "Initial packet size for MASQUE connection")
 	portFwCmd.Flags().DurationP("reconnect-delay", "r", 1*time.Second, "Delay between reconnect attempts")
+	portFwCmd.Flags().BoolP("http3", "3", false, "Use HTTP/3 protocol for MASQUE connection")
+	portFwCmd.Flags().BoolP("http2", "2", false, "Use HTTP/2 protocol for MASQUE connection")
 	rootCmd.AddCommand(portFwCmd)
 }

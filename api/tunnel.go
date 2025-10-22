@@ -170,7 +170,17 @@ func NewWaterAdapter(iface *water.Interface) TunnelDevice {
 //   - device: TunnelDevice - The TUN device to forward packets to and from.
 //   - mtu: int - The MTU of the TUN device.
 //   - reconnectDelay: time.Duration - The delay between reconnect attempts.
-func MaintainTunnel(ctx context.Context, tlsConfig *tls.Config, quicConfig *quic.Config, endpoint netip.AddrPort, device TunnelDevice, mtu int, reconnectDelay time.Duration) {
+func MaintainTunnel(
+	ctx context.Context,
+	tlsConfig *tls.Config,
+	quicConfig *quic.Config,
+	endpoint netip.AddrPort,
+	device TunnelDevice,
+	mtu int,
+	reconnectDelay time.Duration,
+	http3 bool,
+	http2 bool,
+) {
 	packetBufferPool := NewNetBuffer(mtu)
 
 	url, err := url.Parse(internal.ConnectURI)
@@ -181,23 +191,45 @@ func MaintainTunnel(ctx context.Context, tlsConfig *tls.Config, quicConfig *quic
 
 	for {
 		log.Printf("Establishing MASQUE connection to %s", endpoint.String())
-		ipConn, err := connect.ConnectHTTP2(
-			ctx,
-			tlsConfig,
-			quicConfig.KeepAlivePeriod,
-			url,
-			endpoint,
-		)
-		if err != nil {
+		var ipConn connect.HTTPConnection
+		if http3 {
+			ipConn, err = connect.ConnectHTTP3(
+				ctx,
+				tlsConfig,
+				quicConfig,
+				url,
+				endpoint,
+			)
+			if err == nil {
+				goto connected
+			}
+			ipConn.Close()
 			if errors.Is(err, context.Canceled) {
 				return
 			}
-			log.Printf("Failed to connect tunnel: %v", err)
-			ipConn.Close()
-			time.Sleep(reconnectDelay)
-			continue
+			log.Printf("Failed to connect HTTP/3 tunnel: %v", err)
 		}
+		if http2 {
+			ipConn, err = connect.ConnectHTTP2(
+				ctx,
+				tlsConfig,
+				quicConfig.KeepAlivePeriod,
+				url,
+				endpoint,
+			)
+			if err == nil {
+				goto connected
+			}
+			ipConn.Close()
+			if errors.Is(err, context.Canceled) {
+				return
+			}
+			log.Printf("Failed to connect HTTP/2 tunnel: %v", err)
+		}
+		time.Sleep(reconnectDelay)
+		continue
 
+	connected:
 		log.Println("Connected to MASQUE server")
 		errChan := make(chan error, 2)
 		closeChan := make(chan error, 2)

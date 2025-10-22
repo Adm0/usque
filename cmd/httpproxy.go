@@ -169,6 +169,21 @@ var httpProxyCmd = &cobra.Command{
 			log.Println("Warning: MTU is not the default 1280. This is not supported. Packet loss and other issues may occur.")
 		}
 
+		http3, err := cmd.Flags().GetBool("http3")
+		if err != nil {
+			cmd.Printf("Failed to get http3 flag: %v\n", err)
+			return
+		}
+		http2, err := cmd.Flags().GetBool("http2")
+		if err != nil {
+			cmd.Printf("Failed to get http2 flag: %v\n", err)
+			return
+		}
+		if !http2 && !http3 {
+			http2 = true
+			http3 = true
+		}
+
 		var username string
 		var password string
 		if u, err := cmd.Flags().GetString("username"); err == nil && u != "" {
@@ -201,7 +216,7 @@ var httpProxyCmd = &cobra.Command{
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		go api.MaintainTunnel(ctx, tlsConfig, quicConfig, endpoint, api.NewNetstackAdapter(tunDev), mtu, reconnectDelay)
+		go api.MaintainTunnel(ctx, tlsConfig, quicConfig, endpoint, api.NewNetstackAdapter(tunDev), mtu, reconnectDelay, http3, http2)
 
 		server := &http.Server{
 			Addr: net.JoinHostPort(bindAddress, port),
@@ -393,5 +408,7 @@ func init() {
 	httpProxyCmd.Flags().Uint16P("initial-packet-size", "i", 1242, "Initial packet size for MASQUE connection")
 	httpProxyCmd.Flags().DurationP("reconnect-delay", "r", 1*time.Second, "Delay between reconnect attempts")
 	httpProxyCmd.Flags().BoolP("local-dns", "l", false, "Don't use the tunnel for DNS queries")
+	httpProxyCmd.Flags().BoolP("http3", "3", false, "Use HTTP/3 protocol for MASQUE connection")
+	httpProxyCmd.Flags().BoolP("http2", "2", false, "Use HTTP/2 protocol for MASQUE connection")
 	rootCmd.AddCommand(httpProxyCmd)
 }

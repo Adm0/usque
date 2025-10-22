@@ -113,7 +113,7 @@ func ConnectHTTP2(
 	headers.Add(internal.VersionHeader, internal.ConnectVersion)
 	headers.Add(internal.ProtocolHeader, internal.ConnectProtocol)
 	dialer := &net.Dialer{
-		Timeout:   30 * time.Second,
+		Timeout:   5 * time.Second,
 		KeepAlive: keepAlivePeriod,
 	}
 
