@@ -13,11 +13,15 @@ const (
 	KeyTypeMasque = "secp256r1"
 	TunTypeMasque = "masque"
 	DefaultLocale = "en_US"
+	//
+	VersionHeader   = "cf-client-version"
+	ConnectProtocol = "cf-connect-ip"
+	ConnectVersion  = "a-6.35-4471"
 )
 
 var Headers = map[string]string{
-	"User-Agent":        "WARP for Android",
-	"CF-Client-Version": "a-6.35-4471",
-	"Content-Type":      "application/json; charset=UTF-8",
-	"Connection":        "Keep-Alive",
+	"User-Agent":   "WARP for Android",
+	VersionHeader:  ConnectVersion,
+	"Content-Type": "application/json; charset=UTF-8",
+	"Connection":   "Keep-Alive",
 }

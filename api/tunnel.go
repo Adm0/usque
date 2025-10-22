@@ -8,10 +8,12 @@ import (
 	"log"
 	"net"
 	"net/netip"
+	"net/url"
 	"os"
 	"sync"
 	"time"
 
+	"github.com/Diniboy1123/usque/connect"
 	"github.com/Diniboy1123/usque/internal"
 	"github.com/quic-go/quic-go"
 	"github.com/songgao/water"
@@ -170,29 +172,25 @@ func NewWaterAdapter(iface *water.Interface) TunnelDevice {
 //   - reconnectDelay: time.Duration - The delay between reconnect attempts.
 func MaintainTunnel(ctx context.Context, tlsConfig *tls.Config, quicConfig *quic.Config, endpoint netip.AddrPort, device TunnelDevice, mtu int, reconnectDelay time.Duration) {
 	packetBufferPool := NewNetBuffer(mtu)
+
+	url, err := url.Parse(internal.ConnectURI)
+	if err != nil {
+		log.Printf("Failed to parse connect URI %s: %v", internal.ConnectURI, err)
+		os.Exit(1)
+	}
+
 	for {
 		log.Printf("Establishing MASQUE connection to %s", endpoint.String())
-		udpConn, tr, ipConn, rsp, err := ConnectTunnel(
+		ipConn, err := connect.ConnectHTTP3(
 			ctx,
 			tlsConfig,
 			quicConfig,
-			internal.ConnectURI,
-			net.UDPAddrFromAddrPort(endpoint),
+			url,
+			endpoint,
 		)
 		if err != nil {
 			log.Printf("Failed to connect tunnel: %v", err)
-			time.Sleep(reconnectDelay)
-			continue
-		}
-		if rsp.StatusCode != 200 {
-			log.Printf("Tunnel connection failed: %s", rsp.Status)
 			ipConn.Close()
-			if udpConn != nil {
-				udpConn.Close()
-			}
-			if tr != nil {
-				tr.Close()
-			}
 			time.Sleep(reconnectDelay)
 			continue
 		}
@@ -242,7 +240,7 @@ func MaintainTunnel(ctx context.Context, tlsConfig *tls.Config, quicConfig *quic
 			buf := packetBufferPool.Get()
 			defer packetBufferPool.Put(buf)
 			for {
-				n, err := ipConn.ReadPacket(buf, true)
+				n, err := ipConn.ReadPacket(buf)
 				if err != nil {
 					if errors.Is(err, net.ErrClosed) {
 						errChan <- fmt.Errorf("connection closed while reading from IP connection: %v", err)
@@ -264,26 +262,16 @@ func MaintainTunnel(ctx context.Context, tlsConfig *tls.Config, quicConfig *quic
 
 		select {
 		case <-ctx.Done():
+			log.Printf("Close connection...")
+			ipConn.Close()
 			return
 		case err = <-errChan:
 			log.Printf("Tunnel connection lost: %v. Reconnecting...", err)
 			ipConn.Close()
-			if udpConn != nil {
-				udpConn.Close()
-			}
-			if tr != nil {
-				tr.Close()
-			}
 			time.Sleep(reconnectDelay)
 		case err = <-closeChan:
 			log.Printf("Tunnel device closed: %v. Aborting...", err)
 			ipConn.Close()
-			if udpConn != nil {
-				udpConn.Close()
-			}
-			if tr != nil {
-				tr.Close()
-			}
 			os.Exit(0)
 		}
 	}
