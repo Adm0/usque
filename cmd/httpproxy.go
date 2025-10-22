@@ -194,7 +194,10 @@ var httpProxyCmd = &cobra.Command{
 
 		resolver := internal.GetProxyResolver(localDNS, tunNet, dnsAddrs, dnsTimeout)
 
-		go api.MaintainTunnel(context.Background(), tlsConfig, keepalivePeriod, initialPacketSize, endpoint, api.NewNetstackAdapter(tunDev), mtu, reconnectDelay)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		go api.MaintainTunnel(ctx, tlsConfig, keepalivePeriod, initialPacketSize, endpoint, api.NewNetstackAdapter(tunDev), mtu, reconnectDelay)
 
 		server := &http.Server{
 			Addr: net.JoinHostPort(bindAddress, port),

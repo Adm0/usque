@@ -262,6 +262,8 @@ func MaintainTunnel(ctx context.Context, tlsConfig *tls.Config, keepalivePeriod 
 		}()
 
 		select {
+		case <-ctx.Done():
+			return
 		case err = <-errChan:
 			log.Printf("Tunnel connection lost: %v. Reconnecting...", err)
 			ipConn.Close()
