@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -37,6 +38,11 @@ func (c *HTTP2Connection) ReadPacket(buf []byte) (int, error) {
 			case <-c.ctx.Done():
 				return 0, net.ErrClosed
 			default:
+				if errors.Is(err, io.EOF) {
+					return 0, net.ErrClosed
+				} else if err, ok := err.(*net.OpError); ok && !err.Temporary() {
+					return 0, net.ErrClosed
+				}
 				return 0, fmt.Errorf("failed to read context ID: %v", err)
 			}
 		}
@@ -78,6 +84,9 @@ func (c *HTTP2Connection) WritePacket(buf []byte) ([]byte, error) {
 		case <-c.ctx.Done():
 			return nil, net.ErrClosed
 		default:
+			if errors.Is(err, io.ErrClosedPipe) {
+				return nil, net.ErrClosed
+			}
 			return ICMPForError(err, buf)
 		}
 	}
@@ -85,6 +94,10 @@ func (c *HTTP2Connection) WritePacket(buf []byte) ([]byte, error) {
 }
 
 func (c *HTTP2Connection) Close() error {
+	if c.writer != nil {
+		c.writer.Close()
+	}
+
 	if c.conn != nil {
 		c.conn.Shutdown(c.ctx)
 	}
