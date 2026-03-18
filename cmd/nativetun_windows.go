@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/Diniboy1123/usque/api"
-	"github.com/Diniboy1123/usque/config"
 	"github.com/Diniboy1123/usque/internal"
 	"golang.zx2c4.com/wireguard/tun"
 )
@@ -29,8 +28,8 @@ func (t *tunDevice) create() (api.TunnelDevice, error) {
 		return nil, err
 	}
 
-	if t.ipv4 {
-		err = internal.SetIPv4Address(t.name, config.AppConfig.IPv4, "255.255.255.255")
+	if t.ipv4.IsValid() {
+		err = internal.SetIPv4Address(t.name, t.ipv4)
 		if err != nil {
 			return nil, fmt.Errorf("failed to set IPv4 address: %v", err)
 		}
@@ -41,8 +40,8 @@ func (t *tunDevice) create() (api.TunnelDevice, error) {
 		}
 	}
 
-	if t.ipv6 {
-		err = internal.SetIPv6Address(t.name, config.AppConfig.IPv6, "128")
+	if t.ipv6.IsValid() {
+		err = internal.SetIPv6Address(t.name, t.ipv6)
 		if err != nil {
 			return nil, fmt.Errorf("failed to set IPv6 address: %v", err)
 		}

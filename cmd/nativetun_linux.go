@@ -37,20 +37,20 @@ func (t *tunDevice) create() (api.TunnelDevice, error) {
 		if err := netlink.LinkSetMTU(link, t.mtu); err != nil {
 			return nil, fmt.Errorf("failed to set MTU: %v", err)
 		}
-		if t.ipv4 {
+		if t.ipv4.IsValid() {
 			if err := netlink.AddrAdd(link, &netlink.Addr{
 				IPNet: &net.IPNet{
-					IP:   net.ParseIP(config.AppConfig.IPv4),
-					Mask: net.CIDRMask(32, 32),
+					IP:   net.IP(t.ipv4.Addr().AsSlice()),
+					Mask: net.CIDRMask(t.ipv4.Bits(), 32),
 				}}); err != nil {
 				return nil, fmt.Errorf("failed to add IPv4 address: %v", err)
 			}
 		}
-		if t.ipv6 {
+		if t.ipv6.IsValid() {
 			if err := netlink.AddrAdd(link, &netlink.Addr{
 				IPNet: &net.IPNet{
-					IP:   net.ParseIP(config.AppConfig.IPv6),
-					Mask: net.CIDRMask(128, 128),
+					IP:   net.IP(t.ipv6.Addr().AsSlice()),
+					Mask: net.CIDRMask(t.ipv6.Bits(), 128),
 				}}); err != nil {
 				return nil, fmt.Errorf("failed to add IPv6 address: %v", err)
 			}

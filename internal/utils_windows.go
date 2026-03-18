@@ -5,34 +5,35 @@ package internal
 import (
 	"fmt"
 	"log"
+	"net/netip"
 	"os/exec"
 )
 
-func SetIPv4Address(ifaceName, ipAddr, mask string) error {
+func SetIPv4Address(ifaceName string, ipNet netip.Prefix) error {
 	cmd := exec.Command("netsh", "interface", "ipv4", "set", "address",
 		fmt.Sprintf("name=\"%s\"", ifaceName),
-		"static", ipAddr, mask)
+		"static", ipNet.String())
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%s", output)
 	}
 
-	log.Println("IPv4 address set successfully:", ipAddr)
+	log.Println("IPv4 address set successfully:", ipNet.String())
 	return nil
 }
 
-func SetIPv6Address(ifaceName, ipAddr, mask string) error {
+func SetIPv6Address(ifaceName string, ipNet netip.Prefix) error {
 	cmd := exec.Command("netsh", "interface", "ipv6", "set", "address",
 		fmt.Sprintf("interface=\"%s\"", ifaceName),
-		ipAddr+"/"+mask)
+		ipNet.String())
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%s", output)
 	}
 
-	log.Println("IPv6 address set successfully:", ipAddr)
+	log.Println("IPv6 address set successfully:", ipNet.String())
 	return nil
 }
 

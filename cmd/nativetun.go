@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"log"
+	"net/netip"
 
 	"github.com/Diniboy1123/usque/api"
 	"github.com/Diniboy1123/usque/config"
@@ -14,8 +15,8 @@ type tunDevice struct {
 	name     string
 	mtu      int
 	iproute2 bool
-	ipv4     bool
-	ipv6     bool
+	ipv4     netip.Prefix
+	ipv6     netip.Prefix
 }
 
 var nativeTunCmd = &cobra.Command{
@@ -58,8 +59,8 @@ var nativeTunCmd = &cobra.Command{
 			name:     interfaceName,
 			mtu:      masqueConfig.Mtu,
 			iproute2: !setIproute2,
-			ipv4:     masqueConfig.IPv4.IsValid(),
-			ipv6:     masqueConfig.IPv6.IsValid(),
+			ipv4:     netip.PrefixFrom(masqueConfig.IPv4, 32),
+			ipv6:     netip.PrefixFrom(masqueConfig.IPv6, 128),
 		}
 
 		dev, err := t.create()
