@@ -117,7 +117,7 @@ func masqueCmd(cmd *cobra.Command) (*config.Masque, error) {
 }
 
 func masqueInit(cmd *cobra.Command) {
-	cmd.Flags().IntP("connect-port", "P", 443, "Used port for MASQUE connection")
+	cmd.Flags().Uint16P("connect-port", "P", 443, "Used port for MASQUE connection")
 	cmd.Flags().BoolP("ipv6", "6", false, "Use IPv6 for MASQUE connection")
 	cmd.Flags().BoolP("no-tunnel-ipv4", "F", false, "Disable IPv4 inside the MASQUE tunnel")
 	cmd.Flags().BoolP("no-tunnel-ipv6", "S", false, "Disable IPv6 inside the MASQUE tunnel")
