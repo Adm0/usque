@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/netip"
 	"os"
@@ -83,15 +84,16 @@ var nativeTunCmd = &cobra.Command{
 		log.Println("Tunnel established, you may now set up routing and DNS")
 
 		sigChan := make(chan os.Signal, 1)
+		defer close(sigChan)
 		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+		defer signal.Stop(sigChan)
 
 		select {
 		case <-ctx.Done():
 		case <-sigChan:
+			fmt.Print("\r")
+			log.Printf("Terminating...\n")
 		}
-
-		signal.Stop(sigChan)
-		close(sigChan)
 	},
 }
 

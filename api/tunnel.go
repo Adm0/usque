@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"sync"
 	"time"
 
-	connectip "github.com/Diniboy1123/connect-ip-go"
 	"github.com/Diniboy1123/usque/config"
 	"github.com/Diniboy1123/usque/internal"
 	"github.com/songgao/water"
@@ -103,7 +103,7 @@ func (n *NetstackAdapter) WritePacket(pkt []byte) error {
 }
 
 func (n *NetstackAdapter) Close() error {
-	return n.Close()
+	return n.dev.Close()
 }
 
 // NewNetstackAdapter creates a new NetstackAdapter.
@@ -145,7 +145,7 @@ func (w *WaterAdapter) WritePacket(pkt []byte) error {
 }
 
 func (w *WaterAdapter) Close() error {
-	return w.Close()
+	return w.iface.Close()
 }
 
 // NewWaterAdapter creates a new WaterAdapter.
@@ -163,6 +163,8 @@ func NewWaterAdapter(iface *water.Interface) TunnelDevice {
 //   - config: *config.Masque - The masque configuration.
 func MaintainTunnel(ctx context.Context, config *config.Masque, device TunnelDevice) {
 	packetBufferPool := NewNetBuffer(config.Mtu)
+	closeChan := make(chan error, 1)
+	defer close(closeChan)
 	for {
 		log.Printf("Establishing MASQUE connection to %s", config.Endpoint.String())
 		udpConn, tr, ipConn, rsp, err := ConnectTunnel(
@@ -198,6 +200,11 @@ func MaintainTunnel(ctx context.Context, config *config.Masque, device TunnelDev
 				buf := packetBufferPool.Get()
 				n, err := device.ReadPacket(buf)
 				if err != nil {
+					if errors.Is(err, os.ErrClosed) {
+						closeChan <- err
+						packetBufferPool.Put(buf)
+						return
+					}
 					packetBufferPool.Put(buf)
 					errChan <- fmt.Errorf("failed to read from TUN device: %v", err)
 					return
@@ -205,7 +212,7 @@ func MaintainTunnel(ctx context.Context, config *config.Masque, device TunnelDev
 				icmp, err := ipConn.WritePacket(buf[:n])
 				if err != nil {
 					packetBufferPool.Put(buf)
-					if errors.As(err, new(*connectip.CloseError)) {
+					if errors.Is(err, net.ErrClosed) {
 						errChan <- fmt.Errorf("connection closed while writing to IP connection: %v", err)
 						return
 					}
@@ -216,8 +223,8 @@ func MaintainTunnel(ctx context.Context, config *config.Masque, device TunnelDev
 
 				if len(icmp) > 0 {
 					if err := device.WritePacket(icmp); err != nil {
-						if errors.As(err, new(*connectip.CloseError)) {
-							errChan <- fmt.Errorf("connection closed while writing ICMP to TUN device: %v", err)
+						if errors.Is(err, os.ErrClosed) {
+							closeChan <- err
 							return
 						}
 						log.Printf("Error writing ICMP to TUN device: %v, continuing...", err)
@@ -232,7 +239,7 @@ func MaintainTunnel(ctx context.Context, config *config.Masque, device TunnelDev
 			for {
 				n, err := ipConn.ReadPacket(buf, true)
 				if err != nil {
-					if errors.As(err, new(*connectip.CloseError)) {
+					if errors.Is(err, net.ErrClosed) {
 						errChan <- fmt.Errorf("connection closed while reading from IP connection: %v", err)
 						return
 					}
@@ -240,21 +247,35 @@ func MaintainTunnel(ctx context.Context, config *config.Masque, device TunnelDev
 					continue
 				}
 				if err := device.WritePacket(buf[:n]); err != nil {
+					if errors.Is(err, os.ErrClosed) {
+						closeChan <- err
+						return
+					}
 					errChan <- fmt.Errorf("failed to write to TUN device: %v", err)
 					return
 				}
 			}
 		}()
 
-		err = <-errChan
-		log.Printf("Tunnel connection lost: %v. Reconnecting...", err)
-		ipConn.Close()
-		if udpConn != nil {
-			udpConn.Close()
+		select {
+		case err = <-errChan:
+			log.Printf("Tunnel connection lost: %v. Reconnecting...", err)
+			ipConn.Close()
+			if udpConn != nil {
+				udpConn.Close()
+			}
+			if tr != nil {
+				tr.Close()
+			}
+			time.Sleep(config.ReconnectDelay)
+			close(errChan)
+			continue
+		case err = <-closeChan:
+			close(errChan)
+			return
+		case <-ctx.Done():
+			close(errChan)
+			return
 		}
-		if tr != nil {
-			tr.Close()
-		}
-		time.Sleep(config.ReconnectDelay)
 	}
 }
