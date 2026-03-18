@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"sync"
 	"time"
 
@@ -159,7 +160,7 @@ func MaintainTunnel(ctx context.Context, config *config.Masque, device TunnelDev
 			config.TlsConfig,
 			internal.DefaultQuicConfig(config.KeepalivePeriod, config.InitialPacketSize),
 			internal.ConnectURI,
-			&config.Endpoint,
+			net.UDPAddrFromAddrPort(config.Endpoint),
 		)
 		if err != nil {
 			log.Printf("Failed to connect tunnel: %v", err)

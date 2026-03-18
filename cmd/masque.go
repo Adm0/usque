@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"log"
-	"net"
 	"net/netip"
 	"time"
 
@@ -39,21 +38,21 @@ func masqueCmd(cmd *cobra.Command) (*config.Masque, error) {
 		return nil, fmt.Errorf("Failed to prepare TLS config: %v\n", err)
 	}
 
-	connectPort, err := cmd.Flags().GetInt("connect-port")
+	connectPort, err := cmd.Flags().GetUint16("connect-port")
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get connect port: %v\n", err)
 	}
 
-	var endpoint net.IP
+	var endpoint netip.Addr
 	if ipv6, err := cmd.Flags().GetBool("ipv6"); err == nil && !ipv6 {
-		endpoint = net.ParseIP(config.AppConfig.EndpointV4)
-		if endpoint == nil {
-			return nil, fmt.Errorf("Failed to get endpoint: %s\n", config.AppConfig.EndpointV4)
+		endpoint, err = netip.ParseAddr(config.AppConfig.EndpointV4)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to get endpoint: %s\n", err)
 		}
 	} else {
-		endpoint = net.ParseIP(config.AppConfig.EndpointV6)
-		if endpoint == nil {
-			return nil, fmt.Errorf("Failed to get endpoint: %s\n", config.AppConfig.EndpointV6)
+		endpoint, err = netip.ParseAddr(config.AppConfig.EndpointV6)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to get endpoint: %s\n", err)
 		}
 	}
 
@@ -106,11 +105,8 @@ func masqueCmd(cmd *cobra.Command) (*config.Masque, error) {
 	}
 
 	return &config.Masque{
-		TlsConfig: tlsConfig,
-		Endpoint: net.UDPAddr{
-			IP:   endpoint,
-			Port: connectPort,
-		},
+		TlsConfig:         tlsConfig,
+		Endpoint:          netip.AddrPortFrom(endpoint, connectPort),
 		Mtu:               mtu,
 		IPv4:              IPv4,
 		IPv6:              IPv6,
