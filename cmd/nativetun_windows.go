@@ -18,7 +18,7 @@ func (t *tunDevice) create() (api.TunnelDevice, error) {
 		t.name = "usque"
 	}
 
-	dev, err := tun.CreateTUN(t.name, t.mtu)
+	dev, err := tun.CreateTUNWithRequestedGUID(t.name, internal.NameToGuid(t.name), t.mtu)
 	if err != nil {
 		return nil, err
 	}

@@ -3,10 +3,14 @@
 package internal
 
 import (
+	"crypto/md5"
 	"fmt"
 	"log"
 	"net/netip"
 	"os/exec"
+	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 func SetIPv4Address(ifaceName string, ipNet netip.Prefix) error {
@@ -63,4 +67,16 @@ func SetIPv6MTU(ifaceName string, mtu int) error {
 
 	log.Println("IPv6 MTU set successfully:", mtu)
 	return nil
+}
+
+// NameToGuid convert TUN device name to GUID
+//
+// Parameters:
+//   - name: string - The interface name.
+//
+// Returns:
+//   - *windows.GUID: hash of name as GUID.
+func NameToGuid(name string) *windows.GUID {
+	sum := md5.Sum([]byte(name))
+	return (*windows.GUID)(unsafe.Pointer(&sum))
 }
