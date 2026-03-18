@@ -2,10 +2,13 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net"
 	"net/netip"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/Diniboy1123/usque/api"
@@ -96,7 +99,10 @@ var socksCmd = &cobra.Command{
 		}
 		defer tunDev.Close()
 
-		go api.MaintainTunnel(context.Background(), masqueConfig, api.NewNetstackAdapter(tunDev))
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		go api.MaintainTunnel(ctx, masqueConfig, api.NewNetstackAdapter(tunDev))
 
 		var resolver socks5.NameResolver
 		if localDNS {
@@ -134,10 +140,24 @@ var socksCmd = &cobra.Command{
 		}
 
 		log.Printf("SOCKS proxy listening on %s:%s", bindAddress, port)
-		if err := server.ListenAndServe("tcp", net.JoinHostPort(bindAddress, port)); err != nil {
-			cmd.Printf("Failed to start SOCKS proxy: %v\n", err)
-			return
+
+		go func() {
+			if err := server.ListenAndServe("tcp", net.JoinHostPort(bindAddress, port)); err != nil {
+				fmt.Printf("Failed to start SOCKS proxy: %v\n", err)
+				cancel()
+			}
+		}()
+
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+
+		select {
+		case <-ctx.Done():
+		case <-sigChan:
 		}
+
+		signal.Stop(sigChan)
+		close(sigChan)
 	},
 }
 

@@ -4,6 +4,9 @@ import (
 	"context"
 	"log"
 	"net/netip"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/Diniboy1123/usque/api"
 	"github.com/Diniboy1123/usque/config"
@@ -68,14 +71,27 @@ var nativeTunCmd = &cobra.Command{
 			log.Println("Are you root/administrator? TUN device creation usually requires elevated privileges.")
 			log.Fatalf("Failed to create TUN device: %v", err)
 		}
+		defer dev.Close()
 
 		log.Printf("Created TUN device: %s", t.name)
 
-		go api.MaintainTunnel(context.Background(), masqueConfig, dev)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		go api.MaintainTunnel(ctx, masqueConfig, dev)
 
 		log.Println("Tunnel established, you may now set up routing and DNS")
 
-		select {}
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+
+		select {
+		case <-ctx.Done():
+		case <-sigChan:
+		}
+
+		signal.Stop(sigChan)
+		close(sigChan)
 	},
 }
 

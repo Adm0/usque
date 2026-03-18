@@ -8,6 +8,9 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/Diniboy1123/usque/api"
@@ -104,7 +107,10 @@ var httpProxyCmd = &cobra.Command{
 
 		resolver := internal.GetProxyResolver(localDNS, tunNet, dnsAddrs, dnsTimeout)
 
-		go api.MaintainTunnel(context.Background(), masqueConfig, api.NewNetstackAdapter(tunDev))
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		go api.MaintainTunnel(ctx, masqueConfig, api.NewNetstackAdapter(tunDev))
 
 		server := &http.Server{
 			Addr: net.JoinHostPort(bindAddress, port),
@@ -122,11 +128,27 @@ var httpProxyCmd = &cobra.Command{
 				}
 			}),
 		}
+		defer server.Close()
 
-		log.Printf("HTTP proxy listening on %s:%s\n", bindAddress, port)
-		if err := server.ListenAndServe(); err != nil {
-			cmd.Printf("Failed to start HTTP proxy: %v\n", err)
+		go func() {
+			log.Printf("HTTP proxy listening on %s:%s\n", bindAddress, port)
+
+			if err := server.ListenAndServe(); err != nil {
+				fmt.Printf("Failed to start HTTP proxy: %v\n", err)
+				cancel()
+			}
+		}()
+
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+
+		select {
+		case <-ctx.Done():
+		case <-sigChan:
 		}
+
+		signal.Stop(sigChan)
+		close(sigChan)
 	},
 }
 

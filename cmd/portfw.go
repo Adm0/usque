@@ -8,6 +8,9 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/Diniboy1123/usque/api"
 	"github.com/Diniboy1123/usque/config"
@@ -98,7 +101,10 @@ var portFwCmd = &cobra.Command{
 		}
 		defer tunDev.Close()
 
-		go api.MaintainTunnel(context.Background(), masqueConfig, api.NewNetstackAdapter(tunDev))
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		go api.MaintainTunnel(ctx, masqueConfig, api.NewNetstackAdapter(tunDev))
 
 		log.Printf("Virtual tunnel created, forwarding ports")
 
@@ -122,26 +128,37 @@ var portFwCmd = &cobra.Command{
 			}(pm)
 		}
 
-		// One packet must be sent in order to listen for incoming packets
-		// a ping may suffice as well, but we will use a simple GET request
-		client := &http.Client{
-			Transport: &http.Transport{
-				DialContext: tunNet.DialContext,
-			},
-		}
-		resp, err := client.Get("https://cloudflareok.com/test")
-		if err != nil {
-			cmd.Printf("Failed to make request to cloudflare.com: %v\n", err)
-			return
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode != 204 {
-			cmd.Printf("Failed to make request to cloudflare.com: %s\n", resp.Status)
-			return
-		}
-		log.Println("Successfully connected to Cloudflare")
+		func() {
+			// One packet must be sent in order to listen for incoming packets
+			// a ping may suffice as well, but we will use a simple GET request
+			client := &http.Client{
+				Transport: &http.Transport{
+					DialContext: tunNet.DialContext,
+				},
+			}
+			resp, err := client.Get("https://cloudflareok.com/test")
+			if err != nil {
+				cmd.Printf("Failed to make request to cloudflare.com: %v\n", err)
+				return
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != 204 {
+				cmd.Printf("Failed to make request to cloudflare.com: %s\n", resp.Status)
+				return
+			}
+			log.Println("Successfully connected to Cloudflare")
+		}()
 
-		select {}
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+
+		select {
+		case <-ctx.Done():
+		case <-sigChan:
+		}
+
+		signal.Stop(sigChan)
+		close(sigChan)
 	},
 }
 
