@@ -2,15 +2,14 @@ package api
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"log"
-	"net"
 	"sync"
 	"time"
 
 	connectip "github.com/Diniboy1123/connect-ip-go"
+	"github.com/Diniboy1123/usque/config"
 	"github.com/Diniboy1123/usque/internal"
 	"github.com/songgao/water"
 	"golang.zx2c4.com/wireguard/tun"
@@ -150,27 +149,21 @@ func NewWaterAdapter(iface *water.Interface) TunnelDevice {
 //
 // Parameters:
 //   - ctx: context.Context - The context for the connection.
-//   - tlsConfig: *tls.Config - The TLS configuration for secure communication.
-//   - keepalivePeriod: time.Duration - The keepalive period for the QUIC connection.
-//   - initialPacketSize: uint16 - The initial packet size for the QUIC connection.
-//   - endpoint: *net.UDPAddr - The UDP address of the MASQUE server.
-//   - device: TunnelDevice - The TUN device to forward packets to and from.
-//   - mtu: int - The MTU of the TUN device.
-//   - reconnectDelay: time.Duration - The delay between reconnect attempts.
-func MaintainTunnel(ctx context.Context, tlsConfig *tls.Config, keepalivePeriod time.Duration, initialPacketSize uint16, endpoint *net.UDPAddr, device TunnelDevice, mtu int, reconnectDelay time.Duration) {
-	packetBufferPool := NewNetBuffer(mtu)
+//   - config: *config.Masque - The masque configuration.
+func MaintainTunnel(ctx context.Context, config *config.Masque, device TunnelDevice) {
+	packetBufferPool := NewNetBuffer(config.Mtu)
 	for {
-		log.Printf("Establishing MASQUE connection to %s:%d", endpoint.IP, endpoint.Port)
+		log.Printf("Establishing MASQUE connection to %s", config.Endpoint.String())
 		udpConn, tr, ipConn, rsp, err := ConnectTunnel(
 			ctx,
-			tlsConfig,
-			internal.DefaultQuicConfig(keepalivePeriod, initialPacketSize),
+			config.TlsConfig,
+			internal.DefaultQuicConfig(config.KeepalivePeriod, config.InitialPacketSize),
 			internal.ConnectURI,
-			endpoint,
+			&config.Endpoint,
 		)
 		if err != nil {
 			log.Printf("Failed to connect tunnel: %v", err)
-			time.Sleep(reconnectDelay)
+			time.Sleep(config.ReconnectDelay)
 			continue
 		}
 		if rsp.StatusCode != 200 {
@@ -182,7 +175,7 @@ func MaintainTunnel(ctx context.Context, tlsConfig *tls.Config, keepalivePeriod 
 			if tr != nil {
 				tr.Close()
 			}
-			time.Sleep(reconnectDelay)
+			time.Sleep(config.ReconnectDelay)
 			continue
 		}
 
@@ -251,6 +244,6 @@ func MaintainTunnel(ctx context.Context, tlsConfig *tls.Config, keepalivePeriod 
 		if tr != nil {
 			tr.Close()
 		}
-		time.Sleep(reconnectDelay)
+		time.Sleep(config.ReconnectDelay)
 	}
 }
