@@ -2,6 +2,9 @@ package api
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"log"
@@ -11,7 +14,7 @@ import (
 	"time"
 
 	"github.com/Diniboy1123/usque/config"
-	"github.com/Diniboy1123/usque/internal"
+	"github.com/quic-go/quic-go/http3"
 	"github.com/songgao/water"
 	"golang.zx2c4.com/wireguard/tun"
 )
@@ -153,6 +156,12 @@ func NewWaterAdapter(iface *water.Interface) TunnelDevice {
 	return &WaterAdapter{iface: iface}
 }
 
+type IPTunnel interface {
+	WritePacket(b []byte) (icmp []byte, err error)
+	ReadPacket(b []byte) (n int, err error)
+	Close() error
+}
+
 // MaintainTunnel continuously connects to the MASQUE server, then starts two
 // forwarding goroutines: one forwarding from the device to the IP connection (and handling
 // any ICMP reply), and the other forwarding from the IP connection to the device.
@@ -166,33 +175,14 @@ func MaintainTunnel(ctx context.Context, config *config.Masque, device TunnelDev
 	closeChan := make(chan error, 1)
 	defer close(closeChan)
 	for {
-		log.Printf("Establishing MASQUE connection to %s", config.Endpoint.String())
-		udpConn, tr, ipConn, rsp, err := ConnectTunnel(
-			ctx,
-			config.TlsConfig,
-			internal.DefaultQuicConfig(config.KeepalivePeriod, config.InitialPacketSize),
-			internal.ConnectURI,
-			net.UDPAddrFromAddrPort(config.Endpoint),
-		)
+		conn, err := ConnectHTTP3Tunnel(ctx, config)
 		if err != nil {
-			log.Printf("Failed to connect tunnel: %v", err)
-			time.Sleep(config.ReconnectDelay)
-			continue
-		}
-		if rsp.StatusCode != 200 {
-			log.Printf("Tunnel connection failed: %s", rsp.Status)
-			ipConn.Close()
-			if udpConn != nil {
-				udpConn.Close()
-			}
-			if tr != nil {
-				tr.Close()
-			}
+			log.Printf("[HTTP3] Failed to connect tunnel: %v", err)
+			conn.Close()
 			time.Sleep(config.ReconnectDelay)
 			continue
 		}
 
-		log.Println("Connected to MASQUE server")
 		errChan := make(chan error, 2)
 
 		go func() {
@@ -209,7 +199,7 @@ func MaintainTunnel(ctx context.Context, config *config.Masque, device TunnelDev
 					errChan <- fmt.Errorf("failed to read from TUN device: %v", err)
 					return
 				}
-				icmp, err := ipConn.WritePacket(buf[:n])
+				icmp, err := conn.WritePacket(buf[:n])
 				if err != nil {
 					packetBufferPool.Put(buf)
 					if errors.Is(err, net.ErrClosed) {
@@ -237,7 +227,7 @@ func MaintainTunnel(ctx context.Context, config *config.Masque, device TunnelDev
 			buf := packetBufferPool.Get()
 			defer packetBufferPool.Put(buf)
 			for {
-				n, err := ipConn.ReadPacket(buf, true)
+				n, err := conn.ReadPacket(buf)
 				if err != nil {
 					if errors.Is(err, net.ErrClosed) {
 						errChan <- fmt.Errorf("connection closed while reading from IP connection: %v", err)
@@ -260,22 +250,75 @@ func MaintainTunnel(ctx context.Context, config *config.Masque, device TunnelDev
 		select {
 		case err = <-errChan:
 			log.Printf("Tunnel connection lost: %v. Reconnecting...", err)
-			ipConn.Close()
-			if udpConn != nil {
-				udpConn.Close()
-			}
-			if tr != nil {
-				tr.Close()
-			}
-			time.Sleep(config.ReconnectDelay)
+			conn.Close()
 			close(errChan)
+			time.Sleep(config.ReconnectDelay)
 			continue
 		case err = <-closeChan:
+			conn.Close()
 			close(errChan)
 			return
 		case <-ctx.Done():
+			conn.Close()
 			close(errChan)
 			return
 		}
 	}
+}
+
+// PrepareTlsConfig creates a TLS configuration using the provided certificate and SNI (Server Name Indication).
+// It also verifies the peer's public key against the provided public key.
+//
+// Parameters:
+//   - privKey: *ecdsa.PrivateKey - The private key to use for TLS authentication.
+//   - peerPubKey: *ecdsa.PublicKey - The endpoint's public key to pin to.
+//   - cert: [][]byte - The certificate chain to use for TLS authentication.
+//   - sni: string - The Server Name Indication (SNI) to use.
+//
+// Returns:
+//   - *tls.Config: A TLS configuration for secure communication.
+//   - error: An error if TLS setup fails.
+func PrepareTlsConfig(privKey *ecdsa.PrivateKey, peerPubKey *ecdsa.PublicKey, cert [][]byte, sni string) (*tls.Config, error) {
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{
+			{
+				Certificate: cert,
+				PrivateKey:  privKey,
+			},
+		},
+		ServerName: sni,
+		NextProtos: []string{http3.NextProtoH3},
+		// WARN: SNI is usually not for the endpoint, so we must skip verification
+		InsecureSkipVerify: true,
+		// we pin to the endpoint public key
+		VerifyPeerCertificate: func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+			if len(rawCerts) == 0 {
+				return nil
+			}
+
+			cert, err := x509.ParseCertificate(rawCerts[0])
+			if err != nil {
+				return err
+			}
+
+			if _, ok := cert.PublicKey.(*ecdsa.PublicKey); !ok {
+				// we only support ECDSA
+				// TODO: don't hardcode cert type in the future
+				// as backend can start using different cert types
+				return x509.ErrUnsupportedAlgorithm
+			}
+
+			if !cert.PublicKey.(*ecdsa.PublicKey).Equal(peerPubKey) {
+				// reason is incorrect, but the best I could figure
+				// detail explains the actual reason
+
+				//10 is NoValidChains, but we support go1.22 where it's not defined
+				return x509.CertificateInvalidError{Cert: cert, Reason: 10, Detail: "remote endpoint has a different public key than what we trust in config.json"}
+			}
+
+			return nil
+		},
+	}
+
+	return tlsConfig, nil
 }
