@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/tls"
 	"crypto/x509"
@@ -10,6 +11,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -270,21 +272,17 @@ func MaintainTunnel(ctx context.Context, config *config.Masque, device TunnelDev
 // It also verifies the peer's public key against the provided public key.
 //
 // Parameters:
-//   - privKey: *ecdsa.PrivateKey - The private key to use for TLS authentication.
-//   - peerPubKey: *ecdsa.PublicKey - The endpoint's public key to pin to.
-//   - cert: [][]byte - The certificate chain to use for TLS authentication.
+//   - peerPubKey: *crypto.PublicKey - The endpoint's public key to pin to.
+//   - cert: *tls.Certificate - The certificate chain to use for TLS authentication.
 //   - sni: string - The Server Name Indication (SNI) to use.
 //
 // Returns:
 //   - *tls.Config: A TLS configuration for secure communication.
 //   - error: An error if TLS setup fails.
-func PrepareTlsConfig(privKey *ecdsa.PrivateKey, peerPubKey *ecdsa.PublicKey, cert [][]byte, sni string) (*tls.Config, error) {
+func PrepareTlsConfig(peerPubKey crypto.PublicKey, cert *tls.Certificate, sni string) (*tls.Config, error) {
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{
-			{
-				Certificate: cert,
-				PrivateKey:  privKey,
-			},
+			*cert,
 		},
 		ServerName: sni,
 		NextProtos: []string{http3.NextProtoH3},
@@ -292,31 +290,45 @@ func PrepareTlsConfig(privKey *ecdsa.PrivateKey, peerPubKey *ecdsa.PublicKey, ce
 		InsecureSkipVerify: true,
 		// we pin to the endpoint public key
 		VerifyPeerCertificate: func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
-			if len(rawCerts) == 0 {
-				return nil
+			for index, rawCert := range rawCerts {
+				cert, err := x509.ParseCertificate(rawCert)
+				if err != nil {
+					log.Printf("Failed to parse peer certificate #%d: %v", index+1, err)
+					continue
+				}
+				if time.Now().Before(cert.NotBefore) || time.Now().After(cert.NotAfter) {
+					log.Printf("Peer certificate #%d expired", index+1)
+					goto err
+				}
+
+				switch cert.PublicKeyAlgorithm {
+				case x509.ECDSA:
+					if !cert.PublicKey.(*ecdsa.PublicKey).Equal(peerPubKey) {
+						log.Printf("Peer certificate #%d has a different public key", index+1)
+						goto err
+					}
+					return nil
+				default:
+					log.Printf("Peer certificate #%d has unsupported public key algorithm: %s", index+1, cert.PublicKeyAlgorithm)
+					goto err
+				}
+			err:
+				log.Printf("Certificate #%d:", index)
+				log.Printf("    Version: %d", cert.Version)
+				log.Printf("    Serial Number:  %x", cert.SerialNumber)
+				log.Printf("    Signature Algorithm: %s", cert.SignatureAlgorithm)
+				log.Printf("    Issuer: %s", cert.Issuer)
+				log.Printf("    Not Before: %s", cert.NotBefore)
+				log.Printf("    Not After : %s", cert.NotAfter)
+				log.Printf("    Subject: %s", cert.Subject)
+				log.Printf("    DnsNames: %s", strings.Join(cert.DNSNames, ", "))
 			}
 
-			cert, err := x509.ParseCertificate(rawCerts[0])
-			if err != nil {
-				return err
+			return x509.CertificateInvalidError{
+				Cert:   nil,
+				Reason: x509.NoValidChains,
+				Detail: "peer certificates don't contains valid public key.\n",
 			}
-
-			if _, ok := cert.PublicKey.(*ecdsa.PublicKey); !ok {
-				// we only support ECDSA
-				// TODO: don't hardcode cert type in the future
-				// as backend can start using different cert types
-				return x509.ErrUnsupportedAlgorithm
-			}
-
-			if !cert.PublicKey.(*ecdsa.PublicKey).Equal(peerPubKey) {
-				// reason is incorrect, but the best I could figure
-				// detail explains the actual reason
-
-				//10 is NoValidChains, but we support go1.22 where it's not defined
-				return x509.CertificateInvalidError{Cert: cert, Reason: 10, Detail: "remote endpoint has a different public key than what we trust in config.json"}
-			}
-
-			return nil
 		},
 	}
 

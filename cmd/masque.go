@@ -33,7 +33,7 @@ func masqueCmd(cmd *cobra.Command) (*config.Masque, error) {
 		return nil, fmt.Errorf("Failed to generate cert: %v\n", err)
 	}
 
-	tlsConfig, err := api.PrepareTlsConfig(privKey, peerPubKey, cert, sni)
+	tlsConfig, err := api.PrepareTlsConfig(peerPubKey, cert, sni)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to prepare TLS config: %v\n", err)
 	}

@@ -1,15 +1,16 @@
 package internal
 
 import (
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"log"
-	"math/big"
 	"net"
 	"strconv"
 	"strings"
@@ -92,28 +93,30 @@ func GenerateEcKeyPair() ([]byte, []byte, error) {
 	return marshalledPrivKey, marshalledPubKey, nil
 }
 
-// GenerateCert creates a self-signed certificate using the provided ECDSA private and public keys.
+// GenerateCert creates a self-signed certificate using the provided private and public keys.
 //
-// The certificate is valid for 24 hours.
+// The certificate is valid for 7 days.
 //
 // Parameters:
-//   - privKey: *ecdsa.PrivateKey - The private key to sign the certificate.
-//   - pubKey: *ecdsa.PublicKey - The public key to include in the certificate.
+//   - privKey: crypto.PrivateKey - The private key to sign the certificate.
+//   - pubKey: crypto.PublicKey - The public key to include in the certificate.
 //
 // Returns:
-//   - [][]byte: A slice containing the certificate in DER format.
+//   - *tls.Certificate: A self-signed certificate.
 //   - error:    An error if certificate generation fails.
-func GenerateCert(privKey *ecdsa.PrivateKey, pubKey *ecdsa.PublicKey) ([][]byte, error) {
+func GenerateCert(privKey crypto.PrivateKey, pubKey crypto.PublicKey) (*tls.Certificate, error) {
 	cert, err := x509.CreateCertificate(rand.Reader, &x509.Certificate{
-		SerialNumber: big.NewInt(0),
-		NotBefore:    time.Now(),
-		NotAfter:     time.Now().Add(1 * 24 * time.Hour),
-	}, &x509.Certificate{}, &privKey.PublicKey, privKey)
+		NotBefore: time.Now(),
+		NotAfter:  time.Now().Add(7 * 24 * time.Hour),
+	}, &x509.Certificate{}, pubKey, privKey)
 	if err != nil {
 		return nil, err
 	}
 
-	return [][]byte{cert}, nil
+	return &tls.Certificate{
+		Certificate: [][]byte{cert},
+		PrivateKey:  privKey,
+	}, nil
 }
 
 // DefaultQuicConfig returns a MASQUE compatible default QUIC configuration with specified keep-alive period and initial packet size.
