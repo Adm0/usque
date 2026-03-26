@@ -76,6 +76,7 @@ func ConnectHTTP3Tunnel(ctx context.Context, config *config.Masque) (IPTunnel, e
 
 	additionalHeaders := http.Header{
 		"User-Agent": []string{""},
+		"PQ-Enabled": []string{"false"},
 	}
 
 	template := uritemplate.MustNew(internal.ConnectURI)

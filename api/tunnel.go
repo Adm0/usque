@@ -313,7 +313,7 @@ func PrepareTlsConfig(peerPubKey crypto.PublicKey, cert *tls.Certificate, sni st
 					goto err
 				}
 			err:
-				log.Printf("Certificate #%d:", index)
+				log.Printf("Certificate #%d:", index+1)
 				log.Printf("    Version: %d", cert.Version)
 				log.Printf("    Serial Number:  %x", cert.SerialNumber)
 				log.Printf("    Signature Algorithm: %s", cert.SignatureAlgorithm)
@@ -329,6 +329,14 @@ func PrepareTlsConfig(peerPubKey crypto.PublicKey, cert *tls.Certificate, sni st
 				Reason: x509.NoValidChains,
 				Detail: "peer certificates don't contains valid public key.\n",
 			}
+		},
+		CurvePreferences: []tls.CurveID{
+			tls.CurveP256,
+			tls.CurveP384,
+			tls.CurveP521,
+		},
+		CipherSuites: []uint16{
+			tls.TLS_AES_256_GCM_SHA384,
 		},
 	}
 
