@@ -1,16 +1,13 @@
 package models
 
 type Registration struct {
-	Key       string `json:"key"`
-	InstallID string `json:"install_id"`
-	FcmToken  string `json:"fcm_token"`
-	Tos       string `json:"tos"`
-	Model     string `json:"model"`
-	Serial    string `json:"serial_number"`
-	OsVersion string `json:"os_version"`
-	KeyType   string `json:"key_type"`
-	TunType   string `json:"tunnel_type"`
-	Locale    string `json:"locale"`
+	Type    string `json:"type,omitempty"`
+	Model   string `json:"model,omitempty"`
+	Tos     string `json:"tos,omitempty"`
+	Key     string `json:"key"`
+	KeyType string `json:"key_type"`
+	TunType string `json:"tunnel_type"`
+	Name    string `json:"name,omitempty"`
 }
 
 type AccountData struct {

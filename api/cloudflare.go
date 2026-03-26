@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"time"
 
@@ -34,48 +33,38 @@ import (
 //	if err != nil {
 //	    log.Fatalf("Registration failed: %v", err)
 //	}
-func Register(model, locale, jwt string, acceptTos bool) (models.AccountData, error) {
-	wgKey, err := internal.GenerateRandomWgPubkey()
-	if err != nil {
-		return models.AccountData{}, fmt.Errorf("failed to generate wg key: %v", err)
-	}
-	serial, err := internal.GenerateRandomAndroidSerial()
-	if err != nil {
-		return models.AccountData{}, fmt.Errorf("failed to generate serial: %v", err)
-	}
+func Register(pubKey []byte, deviceName string, model string, jwt string, acceptTos bool) (*models.AccountData, error) {
+	var err error
 
 	if !acceptTos {
 		fmt.Print("You must accept the Terms of Service (https://www.cloudflare.com/application/terms/) to register. Do you agree? (y/n): ")
 		var response string
 		if _, err := fmt.Scanln(&response); err != nil {
-			return models.AccountData{}, fmt.Errorf("failed to read user input: %v", err)
+			return nil, fmt.Errorf("failed to read user input: %v", err)
 		}
 		if response != "y" {
-			return models.AccountData{}, fmt.Errorf("user did not accept TOS")
+			return nil, fmt.Errorf("user did not accept TOS")
 		}
 	}
 
 	data := models.Registration{
-		Key:       wgKey,
-		InstallID: "",
-		FcmToken:  "",
-		Tos:       internal.TimeAsCfString(time.Now()),
-		Model:     model,
-		Serial:    serial,
-		OsVersion: "",
-		KeyType:   internal.KeyTypeWg,
-		TunType:   internal.TunTypeWg,
-		Locale:    locale,
+		Type:    "windows",
+		Key:     base64.StdEncoding.EncodeToString(pubKey),
+		Tos:     internal.TimeAsCfString(time.Now()),
+		Model:   model,
+		KeyType: internal.KeyTypeMasque,
+		TunType: internal.TunTypeMasque,
+		Name:    deviceName,
 	}
 
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		return models.AccountData{}, fmt.Errorf("failed to marshal json: %v", err)
+		return nil, fmt.Errorf("failed to marshal json: %v", err)
 	}
 
-	req, err := http.NewRequest("POST", internal.ApiUrl+"/"+internal.ApiVersion+"/reg", bytes.NewBuffer(jsonData))
+	req, err := http.NewRequest(http.MethodPost, internal.ApiUrl+"/"+internal.ApiVersion+"/reg", bytes.NewBuffer(jsonData))
 	if err != nil {
-		return models.AccountData{}, fmt.Errorf("failed to create request: %v", err)
+		return nil, fmt.Errorf("failed to create request: %v", err)
 	}
 
 	for k, v := range internal.Headers {
@@ -88,20 +77,23 @@ func Register(model, locale, jwt string, acceptTos bool) (models.AccountData, er
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return models.AccountData{}, fmt.Errorf("failed to send request: %v", err)
+		return nil, fmt.Errorf("failed to send request: %v", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return models.AccountData{}, fmt.Errorf("failed to register: %v", resp.Status)
+	var respData models.AccountResponse
+	if err := json.NewDecoder(resp.Body).Decode(&respData); err != nil {
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("server response code: %v (%d)", resp.Status, resp.StatusCode)
+		}
+		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	var accountData models.AccountData
-	if err := json.NewDecoder(resp.Body).Decode(&accountData); err != nil {
-		return models.AccountData{}, fmt.Errorf("failed to decode response: %v", err)
+	if !respData.Success {
+		return nil, fmt.Errorf("failed to complete API request: %w", &respData.Errors)
 	}
 
-	return accountData, nil
+	return respData.Result, nil
 }
 
 // EnrollKey updates an existing user account with a new MASQUE public key.
@@ -109,9 +101,10 @@ func Register(model, locale, jwt string, acceptTos bool) (models.AccountData, er
 // This function sends a PATCH request to update the user's account with a new key.
 //
 // Parameters:
-//   - accountData: models.AccountData - The account data of the user being updated.
 //   - pubKey: []byte - The new MASQUE public key in binary format.
 //   - deviceName: string - The name of the device to enroll. (optional)
+//   - accountId: string - The account user ID
+//   - accountToken: string - The account user access token
 //
 // Returns:
 //   - models.AccountData: The updated account data.
@@ -123,54 +116,46 @@ func Register(model, locale, jwt string, acceptTos bool) (models.AccountData, er
 //	if err != nil {
 //	    log.Fatalf("Key enrollment failed: %v", err)
 //	}
-func EnrollKey(accountData models.AccountData, pubKey []byte, deviceName string) (models.AccountData, *models.APIError, error) {
-	deviceUpdate := models.DeviceUpdate{
+func EnrollKey(pubKey []byte, deviceName string, accountId string, accountToken string) (*models.AccountData, error) {
+	deviceUpdate := models.Registration{
 		Key:     base64.StdEncoding.EncodeToString(pubKey),
 		KeyType: internal.KeyTypeMasque,
 		TunType: internal.TunTypeMasque,
-	}
-
-	if deviceName != "" {
-		deviceUpdate.Name = deviceName
+		Name:    deviceName,
 	}
 
 	jsonData, err := json.Marshal(deviceUpdate)
 	if err != nil {
-		return models.AccountData{}, nil, fmt.Errorf("failed to marshal json: %v", err)
+		return nil, fmt.Errorf("failed to marshal json: %v", err)
 	}
 
-	req, err := http.NewRequest("PATCH", internal.ApiUrl+"/"+internal.ApiVersion+"/reg/"+accountData.ID, bytes.NewBuffer(jsonData))
+	req, err := http.NewRequest(http.MethodPatch, internal.ApiUrl+"/"+internal.ApiVersion+"/reg/"+accountId, bytes.NewBuffer(jsonData))
 	if err != nil {
-		return models.AccountData{}, nil, fmt.Errorf("failed to create request: %v", err)
+		return nil, fmt.Errorf("failed to create request: %v", err)
 	}
 
 	for k, v := range internal.Headers {
 		req.Header.Set(k, v)
 	}
-	req.Header.Set("Authorization", "Bearer "+accountData.Token)
+	req.Header.Set("Authorization", "Bearer "+accountToken)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return models.AccountData{}, nil, fmt.Errorf("failed to send request: %v", err)
+		return nil, fmt.Errorf("failed to send request: %v", err)
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return models.AccountData{}, nil, fmt.Errorf("failed to read response body: %v", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		var apiErr models.APIError
-		if err := json.Unmarshal(body, &apiErr); err != nil {
-			return models.AccountData{}, nil, fmt.Errorf("failed to parse error response: %v", err)
+	var respData models.AccountResponse
+	if err := json.NewDecoder(resp.Body).Decode(&respData); err != nil {
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("failed to register: %v (%d)", resp.Status, resp.StatusCode)
 		}
-		return models.AccountData{}, &apiErr, fmt.Errorf("failed to update: %s", resp.Status)
+		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	if err := json.Unmarshal(body, &accountData); err != nil {
-		return models.AccountData{}, nil, fmt.Errorf("failed to decode response: %v", err)
+	if !respData.Success {
+		return nil, fmt.Errorf("failed to complete API request: %w", &respData.Errors)
 	}
 
-	return accountData, nil, nil
+	return respData.Result, nil
 }

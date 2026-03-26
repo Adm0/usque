@@ -2,22 +2,24 @@ package internal
 
 const (
 	ApiUrl     = "https://api.cloudflareclient.com"
-	ApiVersion = "v0a4471"
+	ApiVersion = "v0"
 	ConnectSNI = "consumer-masque.cloudflareclient.com"
 	// unused for now
 	ZeroTierSNI   = "zt-masque.cloudflareclient.com"
-	ConnectURI    = "https://cloudflareaccess.com"
+	ConnectURI    = "http://cloudflareaccess.com"
 	DefaultModel  = "PC"
 	KeyTypeWg     = "curve25519"
 	TunTypeWg     = "wireguard"
 	KeyTypeMasque = "secp256r1"
 	TunTypeMasque = "masque"
 	DefaultLocale = "en_US"
+	ClientVersion = "w-2026.1.150.0"
 )
 
 var Headers = map[string]string{
-	"User-Agent":        "WARP for Android",
-	"CF-Client-Version": "a-6.35-4471",
-	"Content-Type":      "application/json; charset=UTF-8",
-	"Connection":        "Keep-Alive",
+	"user-agent":        "WARP for Windows",
+	"cf-client-version": ClientVersion,
+	"content-type":      "application/json",
+	"connection":        "Keep-Alive",
+	"accept":            "*/*",
 }

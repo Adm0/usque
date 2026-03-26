@@ -75,8 +75,9 @@ func ConnectHTTP3Tunnel(ctx context.Context, config *config.Masque) (IPTunnel, e
 	hconn := conn.tr.NewClientConn(quicConn)
 
 	additionalHeaders := http.Header{
-		"User-Agent": []string{""},
-		"PQ-Enabled": []string{"false"},
+		"user-agent":        []string{""},
+		"pq-enabled":        []string{"false"},
+		"cf-client-version": []string{internal.ClientVersion},
 	}
 
 	template := uritemplate.MustNew(internal.ConnectURI)
@@ -108,7 +109,9 @@ func (c *HTTP3Tunnel) Close() error {
 	if c == nil {
 		return nil
 	}
-	c.ipConn.Close()
+	if c.ipConn != nil {
+		c.ipConn.Close()
+	}
 	if c.udpConn != nil {
 		c.udpConn.Close()
 	}
