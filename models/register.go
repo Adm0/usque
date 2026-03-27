@@ -1,16 +1,28 @@
 package models
 
-type Registration struct {
-	Type    string `json:"type,omitempty"`
-	Model   string `json:"model,omitempty"`
-	Tos     string `json:"tos,omitempty"`
+type RegistrationData struct {
+	Type    string `json:"type"`
+	Model   string `json:"model"`
+	Tos     string `json:"tos"`
 	Key     string `json:"key"`
 	KeyType string `json:"key_type"`
 	TunType string `json:"tunnel_type"`
 	Name    string `json:"name,omitempty"`
 }
 
-type AccountData struct {
+type EnrollData struct {
+	Key     string `json:"key"`
+	KeyType string `json:"key_type"`
+	TunType string `json:"tunnel_type"`
+	Name    string `json:"name,omitempty"`
+}
+
+type RegistrationResponse struct {
+	Result *Registration `json:"result,omitempty"`
+	APIResponse
+}
+
+type Registration struct {
 	ID      string  `json:"id"`
 	Type    string  `json:"type"`
 	Model   string  `json:"model"`

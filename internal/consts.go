@@ -14,12 +14,12 @@ const (
 	TunTypeMasque = "masque"
 	DefaultLocale = "en_US"
 	ClientVersion = "w-2026.1.150.0"
+	Platform      = "windows"
 )
 
 var Headers = map[string]string{
 	"user-agent":        "WARP for Windows",
 	"cf-client-version": ClientVersion,
-	"content-type":      "application/json",
 	"connection":        "Keep-Alive",
 	"accept":            "*/*",
 }

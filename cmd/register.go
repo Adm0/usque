@@ -31,6 +31,22 @@ var registerCmd = &cobra.Command{
 			}
 		}
 
+		acceptTos, err := cmd.Flags().GetBool("accept-tos")
+		if err != nil {
+			log.Fatalf("Failed to get accept-tos flag: %v", err)
+		}
+
+		if !acceptTos {
+			fmt.Print("You must accept the Terms of Service (https://www.cloudflare.com/application/terms/) to register. Do you agree? (y/n): ")
+			var response string
+			if _, err := fmt.Scanln(&response); err != nil {
+				log.Fatalf("failed to read user input: %v", err)
+			}
+			if !strings.EqualFold(response, "y") {
+				log.Fatalf("user did not accept TOS")
+			}
+		}
+
 		configPath, err := cmd.Flags().GetString("config")
 		if err != nil {
 			log.Fatalf("Failed to get config path: %v", err)
@@ -67,17 +83,12 @@ var registerCmd = &cobra.Command{
 			log.Printf("Registering with model %s", model)
 		}
 
-		acceptTos, err := cmd.Flags().GetBool("accept-tos")
-		if err != nil {
-			log.Fatalf("Failed to get accept-tos flag: %v", err)
-		}
-
 		privKey, pubKey, err := internal.GenerateEcKeyPair()
 		if err != nil {
 			log.Fatalf("Failed to generate key pair: %v", err)
 		}
 
-		accountData, err := api.Register(pubKey, deviceName, model, jwt, acceptTos)
+		accountData, err := api.Register(pubKey, deviceName, model, jwt)
 		if err != nil {
 			log.Fatalf("Failed to register: %v", err)
 		}
