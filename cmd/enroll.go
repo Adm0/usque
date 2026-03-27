@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/netip"
 	"strings"
 
 	"github.com/Diniboy1123/usque/api"
@@ -101,13 +102,20 @@ var enrollCmd = &cobra.Command{
 
 		log.Printf("Successful registration. Saving config...")
 
+		EndpointV4, err := netip.ParseAddrPort(accountData.Config.Peers[0].Endpoint.V4)
+		if err != nil {
+			log.Fatalf("Failed to parse IPv4 endpoint: %v", err)
+		}
+
+		EndpointV6, err := netip.ParseAddrPort(accountData.Config.Peers[0].Endpoint.V6)
+		if err != nil {
+			log.Fatalf("Failed to parse IPv6 endpoint: %v", err)
+		}
+
 		config.AppConfig = config.Config{
-			PrivateKey: base64.StdEncoding.EncodeToString(privKeyBytes),
-			// TODO: proper endpoint parsing in utils
-			// strip :0
-			EndpointV4: accountData.Config.Peers[0].Endpoint.V4[:len(accountData.Config.Peers[0].Endpoint.V4)-2],
-			// strip [ from beginning and ]:0 from end
-			EndpointV6:     accountData.Config.Peers[0].Endpoint.V6[1 : len(accountData.Config.Peers[0].Endpoint.V6)-3],
+			PrivateKey:     base64.StdEncoding.EncodeToString(privKeyBytes),
+			EndpointV4:     EndpointV4.Addr().String(),
+			EndpointV6:     EndpointV6.Addr().String(),
 			EndpointPubKey: accountData.Config.Peers[0].PublicKey,
 			License:        accountData.Account.License,
 			ID:             accountData.ID,
