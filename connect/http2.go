@@ -52,6 +52,10 @@ func (c *HTTP2Connection) ReadPacket(buf []byte) (int, error) {
 			return 0, fmt.Errorf("failed to read packet length: %v", err)
 		}
 
+		if length > cap(buf) {
+			return 0, fmt.Errorf("failed to read packet: packet too big")
+		}
+
 		_, err = io.ReadAtLeast(c.reader, buf[:length], int(length))
 		if err != nil {
 			return 0, fmt.Errorf("failed to read packet: %v", err)

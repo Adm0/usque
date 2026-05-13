@@ -181,7 +181,7 @@ func MaintainTunnel(
 	http3 bool,
 	http2 bool,
 ) {
-	packetBufferPool := NewNetBuffer(mtu)
+	packetBufferPool := NewNetBuffer(1500)
 
 	url, err := url.Parse(internal.ConnectURI)
 	if err != nil {
